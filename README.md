@@ -63,9 +63,21 @@ cp .env.example .env
 ### 2. 安装依赖
 
 ```bash
-# 安装所有依赖（包含评测所需）
+# 方式一: 使用 requirements.txt 安装所有依赖（包含评测所需）
 pip install -r requirements.txt
+
+# 方式二: 使用 setup.py 安装（推荐）
+# 仅安装核心依赖（生产环境）
+pip install .
+
+# 安装核心依赖 + 开发工具（开发环境）
+pip install -e .[dev]
+# 包含: pytest, pytest-cov, black, flake8 等测试和代码质量工具
 ```
+
+**依赖说明**:
+- **核心依赖** (install_requires): 运行系统必需的包，如 chromadb, openai 等
+- **开发依赖** (extras_require[dev]): 仅开发/测试时需要，包括测试框架和代码格式化工具
 
 ### 3. 下载嵌入模型（使用本地LLM时需要）
 
@@ -103,17 +115,44 @@ DASHSCOPE_API_KEY=your_actual_api_key_here
 
 ## 学习使用方法
 
-### 安装
+### 安装方式
 
-使用标准的Python包安装方式：
+TinyMem0 提供两种安装方式:
+
+#### 方式一: 标准安装 (推荐用于学习)
 
 ```bash
-# 开发模式安装（推荐用于学习）
+# 开发模式安装 - 代码修改立即生效，无需重新安装
 pip install -e .
 
-# 或直接安装
+# 包含开发工具 - 适合贡献代码或深度学习
+pip install -e .[dev]
+```
+
+**开发模式的优势**:
+- 修改源代码后立即生效,无需重新安装
+- 方便调试和实验
+- 包含 pytest(测试)、black(代码格式化)、flake8(代码检查) 等开发工具
+
+#### 方式二: 直接安装
+
+```bash
+# 仅安装核心功能
 pip install .
 ```
+
+**适用场景**:
+- 只想使用系统功能,不修改代码
+- 生产环境部署
+
+#### 方式三: 从 requirements.txt 安装
+
+```bash
+# 安装所有依赖(包含评测工具)
+pip install -r requirements.txt
+```
+
+**注意**: 这种方式会安装所有依赖,但不会安装开发工具(pytest、black等)。
 
 ### 基本使用示例
 
