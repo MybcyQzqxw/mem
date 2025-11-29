@@ -105,23 +105,104 @@ def _download_from_huggingface(model_id: str, cache_dir: str) -> str:
     return downloaded_path
 
 
-def download_llm_model(model_id: str,
-                      cache_dir: str = './models',
-                      model_type: str = 'gguf') -> str:
+def download_llm_model(
+    model_id: str,
+    cache_dir: str = './models',
+    model_format: str = 'gguf'
+) -> str:
     """
-    下载LLM模型（GGUF或其他格式）
+    LLM模型下载（当前为占位函数，需手动下载）
+    
+    由于LLM模型体积巨大(3-20GB+)且有多种量化版本，
+    当前版本需要用户手动下载模型。
     
     Args:
         model_id: 模型ID
         cache_dir: 缓存目录
-        model_type: 模型类型 ('gguf', 'pytorch', etc.)
+        model_format: 模型格式 ('gguf' 或 'safetensors')
         
     Returns:
         下载后的模型路径
+        
+    Raises:
+        NotImplementedError: 当前版本暂不支持自动下载
+        
+    推荐下载源和步骤:
+    
+    ==== GGUF 格式模型 (量化，内存占用低) ====
+    
+    1. HuggingFace GGUF模型库:
+       https://huggingface.co/models?library=gguf
+       
+       推荐模型:
+       - Qwen2-7B-Instruct-GGUF (中文优化)
+       - Mistral-7B-Instruct-GGUF (通用性好)
+       - Llama-3-8B-Instruct-GGUF (Meta官方)
+       
+       量化版本选择:
+       - Q4_K_M: 4GB左右，推荐平衡
+       - Q5_K_M: 5GB左右，更高精度
+       - Q8_0: 8GB左右，接近原始精度
+    
+    2. ModelScope GGUF模型:
+       https://modelscope.cn/models
+       搜索关键词 "GGUF" + 模型名
+    
+    3. 下载步骤:
+       a. 访问模型页面
+       b. 下载 .gguf 文件
+       c. 放置到: ./models/gguf/
+       d. 运行: python scripts/setup_llm.py
+    
+    ==== SafeTensors 格式模型 (原始精度，内存占用高) ====
+    
+    1. HuggingFace 模型库:
+       https://huggingface.co/models?library=transformers
+       
+       推荐模型:
+       - Qwen/Qwen2-7B-Instruct
+       - mistralai/Mistral-7B-Instruct-v0.2
+       - meta-llama/Meta-Llama-3-8B-Instruct
+    
+    2. 下载步骤 (使用 huggingface-cli):
+       pip install huggingface_hub
+       huggingface-cli download Qwen/Qwen2-7B-Instruct --local-dir ./models/safetensors/qwen2-7b
+    
+    3. 或使用 git-lfs:
+       git lfs install
+       cd models/safetensors
+       git clone https://huggingface.co/Qwen/Qwen2-7B-Instruct
+    
+    ==== 硬件要求 ====
+    
+    GGUF (量化):
+      - 7B Q4: 最低4GB显存/RAM
+      - 7B Q5: 最低6GB显存/RAM
+      - 13B Q4: 最低8GB显存/RAM
+    
+    SafeTensors (FP16):
+      - 7B: 最低14GB显存
+      - 13B: 最低26GB显存
+      - 需要CUDA支持
+    
     """
-    # 未来可以扩展支持直接下载GGUF模型
-    # 当前作为占位符
-    raise NotImplementedError("LLM模型下载功能即将推出")
+    raise NotImplementedError(
+        f"\n"
+        f"{'='*70}\n"
+        f"LLM模型需要手动下载\n"
+        f"{'='*70}\n"
+        f"\n"
+        f"模型格式: {model_format}\n"
+        f"目标目录: {cache_dir}/{model_format}/\n"
+        f"\n"
+        f"请参考函数文档中的下载指南，或运行:\n"
+        f"  python -c \"from utils.model_manager import download_llm_model; help(download_llm_model)\"\n"
+        f"\n"
+        f"下载完成后运行配置脚本:\n"
+        f"  python scripts/setup_llm.py\n"
+        f"{'='*70}\n"
+    )
+
 
 
 def check_model_exists(model_id: str, cache_dir: str) -> bool:
