@@ -2,17 +2,72 @@
 # -*- coding: utf-8 -*-
 
 """
-记忆系统使用示例
+记忆系统使用示例 - 自动下载模型并运行
 """
 import sys
+import os
 from pathlib import Path
 
-# 添加项目src目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+# 添加项目根目录到路径
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root / 'src'))
+sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
 load_dotenv()
 from tinymem0 import MemorySystem
+
+
+def download_models():
+    """下载必要的模型"""
+    print("=" * 70)
+    print("📦 检查并下载模型")
+    print("=" * 70)
+    
+    from utils.model_manager.downloader import download_embedding_model, download_llm_model
+    
+    # 下载嵌入模型
+    print("\n1️⃣ 下载嵌入模型...")
+    embedding_model = os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
+    try:
+        download_embedding_model(embedding_model)
+        print("✅ 嵌入模型准备完成")
+    except Exception as e:
+        print(f"⚠️ 嵌入模型下载失败: {e}")
+    
+    # 下载LLM模型（GGUF格式）
+    print("\n2️⃣ 下载LLM模型...")
+    use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
+    
+    if use_local:
+        # 检查模型是否已存在
+        model_path = os.getenv("LOCAL_MODEL_PATH", "models/Mistral-7B-Instruct-v0.3.Q4_K_M.gguf")
+        
+        if Path(model_path).exists():
+            print(f"✅ 模型已存在: {model_path}")
+        else:
+            print(f"📥 下载模型到: {model_path}")
+            try:
+                # 使用Qwen2.5-7B（中文效果好，文件较小）
+                download_llm_model(
+                    repo_id="Qwen/Qwen2.5-7B-Instruct-GGUF",
+                    filename="qwen2.5-7b-instruct-q4_k_m.gguf",
+                    model_format="gguf"
+                )
+                
+                # 更新.env中的路径
+                new_model_path = "./models/gguf/qwen2.5-7b-instruct-q4_k_m.gguf"
+                print(f"\n✅ 模型下载完成: {new_model_path}")
+                print(f"💡 请更新.env文件中的LOCAL_MODEL_PATH={new_model_path}")
+                
+            except Exception as e:
+                print(f"❌ 模型下载失败: {e}")
+                print("💡 你可以手动运行: python scripts/download_llm.py")
+    else:
+        print("⏭️ 使用云端API，无需下载LLM模型")
+    
+    print("\n" + "=" * 70)
+
 
 def main():
     """主函数 - 演示记忆系统的使用"""
@@ -264,5 +319,10 @@ def example_advanced_search():
 
 
 if __name__ == "__main__":
+    # 先下载模型
+    download_models()
+    
+    print("\n")
+    
     # 运行主示例
     main()
