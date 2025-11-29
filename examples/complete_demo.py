@@ -24,19 +24,23 @@ def download_models():
     print("📦 检查并下载模型")
     print("=" * 70)
     
-    from utils.model_manager.downloader import download_embedding_model, download_llm_model
-    
-    # 下载嵌入模型
-    print("\n1️⃣ 下载嵌入模型...")
+    # 下载嵌入模型 - 使用sentence_transformers直接加载（会自动下载）
+    print("\n1️⃣ 准备嵌入模型...")
     embedding_model = os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
+    print(f"   模型: {embedding_model}")
+    
     try:
-        download_embedding_model(embedding_model)
-        print("✅ 嵌入模型准备完成")
+        from sentence_transformers import SentenceTransformer
+        print("   📥 首次使用会自动下载，请稍候...")
+        model = SentenceTransformer(embedding_model)
+        print("   ✅ 嵌入模型准备完成")
+        del model  # 释放内存
     except Exception as e:
-        print(f"⚠️ 嵌入模型下载失败: {e}")
+        print(f"   ⚠️ 嵌入模型加载失败: {e}")
+        print("   💡 将在记忆系统初始化时自动下载")
     
     # 下载LLM模型（GGUF格式）
-    print("\n2️⃣ 下载LLM模型...")
+    print("\n2️⃣ 检查LLM模型...")
     use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
     
     if use_local:
@@ -44,27 +48,32 @@ def download_models():
         model_path = os.getenv("LOCAL_MODEL_PATH", "models/Mistral-7B-Instruct-v0.3.Q4_K_M.gguf")
         
         if Path(model_path).exists():
-            print(f"✅ 模型已存在: {model_path}")
+            print(f"   ✅ 模型已存在: {model_path}")
         else:
-            print(f"📥 下载模型到: {model_path}")
+            print(f"   ❌ 模型不存在: {model_path}")
+            print(f"   💡 下载模型（约4-5GB，需要几分钟）...")
+            
+            from utils.model_manager.downloader import download_llm_model
+            
             try:
-                # 使用Qwen2.5-7B（中文效果好，文件较小）
+                # 使用Qwen2.5-7B（中文效果好）
                 download_llm_model(
-                    repo_id="Qwen/Qwen2.5-7B-Instruct-GGUF",
-                    filename="qwen2.5-7b-instruct-q4_k_m.gguf",
-                    model_format="gguf"
+                    model_id="Qwen/Qwen2.5-7B-Instruct-GGUF",
+                    model_format="gguf",
+                    quantization="Q4_K_M"
                 )
                 
                 # 更新.env中的路径
                 new_model_path = "./models/gguf/qwen2.5-7b-instruct-q4_k_m.gguf"
-                print(f"\n✅ 模型下载完成: {new_model_path}")
-                print(f"💡 请更新.env文件中的LOCAL_MODEL_PATH={new_model_path}")
+                print(f"\n   ✅ 模型下载完成: {new_model_path}")
+                print(f"   💡 请更新.env文件中的LOCAL_MODEL_PATH={new_model_path}")
                 
             except Exception as e:
-                print(f"❌ 模型下载失败: {e}")
-                print("💡 你可以手动运行: python scripts/download_llm.py")
+                print(f"   ❌ 模型下载失败: {e}")
+                print("   💡 你可以手动运行: python scripts/download_llm.py")
+                print("   ⚠️  将跳过需要LLM的功能（事实提取）")
     else:
-        print("⏭️ 使用云端API，无需下载LLM模型")
+        print("   ⏭️  使用云端API，无需下载LLM模型")
     
     print("\n" + "=" * 70)
 

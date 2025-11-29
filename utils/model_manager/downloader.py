@@ -192,9 +192,12 @@ def _download_gguf_model(
     try:
         from huggingface_hub import list_repo_files
         
+        print("   连接到 HuggingFace...")
         # 列出仓库中所有文件
         files = list_repo_files(model_id)
         gguf_files = [f for f in files if f.endswith('.gguf')]
+        
+        print(f"   找到 {len(gguf_files)} 个GGUF文件")
         
         # 查找匹配的量化文件
         target_file = None
@@ -204,8 +207,9 @@ def _download_gguf_model(
                 break
         
         if not target_file:
+            print(f"\n❌ 未找到 {quantization} 量化版本")
             print(f"\n可用的GGUF文件:")
-            for f in gguf_files:
+            for f in gguf_files[:10]:  # 只显示前10个
                 print(f"  - {f}")
             raise ValueError(
                 f"未找到 {quantization} 量化版本\n"
@@ -213,9 +217,25 @@ def _download_gguf_model(
             )
         
         print(f"✅ 找到文件: {target_file}")
-        print(f"📥 开始下载到: {target_dir}")
         
-        # 下载文件
+        # 获取文件大小
+        from huggingface_hub import HfApi
+        api = HfApi()
+        file_info = api.repo_info(model_id, files_metadata=True)
+        file_size = None
+        for sibling in file_info.siblings:
+            if sibling.rfilename == target_file:
+                file_size = sibling.size
+                break
+        
+        if file_size:
+            size_gb = file_size / (1024**3)
+            print(f"📦 文件大小: {size_gb:.2f} GB")
+        
+        print(f"📥 开始下载...")
+        print(f"💾 保存到: {target_dir}")
+        
+        # 下载文件（带进度条）
         downloaded_path = hf_hub_download(
             repo_id=model_id,
             filename=target_file,
@@ -225,7 +245,7 @@ def _download_gguf_model(
             resume_download=True
         )
         
-        print(f"✅ 下载完成: {downloaded_path}")
+        print(f"\n✅ 下载完成: {downloaded_path}")
         return downloaded_path
         
     except Exception as e:
