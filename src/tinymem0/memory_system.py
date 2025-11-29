@@ -12,7 +12,13 @@ from dashscope import Generation
 from .prompts import FACT_EXTRACTION_PROMPT, MEMORY_PROCESSING_PROMPT
 # 导入适配器（TinyMem0特定）
 from .adapters import extract_llm_response_content, call_llm_with_prompt, handle_llm_error, extract_embedding_from_response
-# 导入推理工具
+
+# 导入推理工具 - 添加父目录到路径
+import sys
+from pathlib import Path
+_project_root = Path(__file__).parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 from utils.inference import parse_json_response
 
 class MemorySystem:

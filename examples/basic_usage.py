@@ -17,9 +17,12 @@ from tinymem0 import MemorySystem
 def main():
     """主函数 - 演示记忆系统的使用"""
     import os 
-    if not os.getenv("DASHSCOPE_API_KEY"):
+    use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
+    if not use_local and not os.getenv("DASHSCOPE_API_KEY"):
         raise RuntimeError("未找到 DASHSCOPE_API_KEY，请在 .env 中配置。")
-    print("初始化记忆系统...")
+    
+    mode = "本地模型" if use_local else "云端API"
+    print(f"初始化记忆系统 ({mode})...")
     memory_system = MemorySystem()
     
     # 示例1: 写入记忆
