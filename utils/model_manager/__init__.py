@@ -11,7 +11,7 @@ from .downloader import (
     check_model_exists
 )
 
-from .llm_helper import (
+from .local_llm_manager import (
     ensure_models_directory,
     find_gguf_models,
     configure_llm_model,

@@ -12,8 +12,8 @@ from dashscope import Generation
 from .prompts import FACT_EXTRACTION_PROMPT, MEMORY_PROCESSING_PROMPT
 # 导入适配器（TinyMem0特定）
 from .adapters import extract_llm_response_content, call_llm_with_prompt, handle_llm_error, extract_embedding_from_response
-# 导入通用工具
-from utils.llm import parse_json_response
+# 导入推理工具
+from utils.inference import parse_json_response
 
 class MemorySystem:
     def __init__(self, collection_name: str = "memories", llm_model: str = "qwen-turbo", embedding_model: str = "text-embedding-v1", log_mode: Optional[str] = None, log_level: Optional[str] = None, log_file: Optional[str] = None, qdrant_path: Optional[str] = None):

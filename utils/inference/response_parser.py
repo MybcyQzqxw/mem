@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-JSON解析工具
-提供通用的JSON解析和提取功能，特别是从LLM响应中解析JSON
+LLM响应解析工具
+提供从LLM响应中解析和提取JSON数据的功能
+处理LLM输出的非标准格式，支持多种提取策略
 """
 
 import json

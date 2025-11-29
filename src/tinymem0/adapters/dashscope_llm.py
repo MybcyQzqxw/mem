@@ -52,7 +52,7 @@ def call_llm_with_prompt(model: str, system_prompt: str, user_content: str) -> O
     
     if use_local:
         try:
-            from utils.llm import get_local_llm
+            from utils.inference import get_local_llm
             llm = get_local_llm()
             
             # 检查是否需要JSON输出，如果是则降低温度以获得更确定性的输出
