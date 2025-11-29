@@ -47,4 +47,3 @@ __all__ = [
     'GGUF_DIR',
     'SAFETENSORS_DIR',
 ]
-
