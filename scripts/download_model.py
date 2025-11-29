@@ -44,9 +44,13 @@ def write_env_local_model(path: str):
 
 
 if __name__ == '__main__':
+    # 确保 models 目录存在
+    models_dir.mkdir(parents=True, exist_ok=True)
+    
     models = find_gguf_models()
     if not models:
         print("⚠️ 未在 ./models 目录中发现 .gguf 模型。请将模型文件放入该目录，或在 .env 中手动设置 LOCAL_MODEL_PATH。")
+        print(f"📁 models 目录已创建: {models_dir}")
         print("示例: LOCAL_MODEL_PATH=./models/Mistral-7B-Instruct-v0.3.Q4_K_M.gguf")
     else:
         print("🔎 在 ./models 目录中发现以下 GGUF 模型：")

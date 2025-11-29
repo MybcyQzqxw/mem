@@ -43,6 +43,9 @@ def download_embedding_model(model_id: str = 'AI-ModelScope/bge-small-zh-v1.5',
         ...     source='huggingface'
         ... )
     """
+    # 确保缓存目录存在
+    os.makedirs(cache_dir, exist_ok=True)
+    
     # 检查模型是否已存在
     model_path = os.path.join(cache_dir, model_id)
     if os.path.exists(model_path):

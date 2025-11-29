@@ -55,7 +55,8 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "tinymem0-download=scripts.download_embedding:main",
+            "tinymem0-download-embedding=scripts.download_embedding:main",
+            "tinymem0-setup-llm=scripts.setup_llm:main",
             "tinymem0-eval=scripts.evaluate_system:main",
         ],
     },

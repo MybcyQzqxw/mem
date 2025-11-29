@@ -79,7 +79,9 @@ pip install -e .[dev]
 - **核心依赖** (install_requires): 运行系统必需的包，如 chromadb, openai 等
 - **开发依赖** (extras_require[dev]): 仅开发/测试时需要，包括测试框架和代码格式化工具
 
-### 3. 下载嵌入模型（使用本地LLM时需要）
+### 3. 下载和配置模型（使用本地LLM时需要）
+
+#### 3.1 下载嵌入模型
 
 使用交互式脚本下载嵌入模型：
 
@@ -94,7 +96,23 @@ python scripts/download_embedding.py --model-id 1
 python scripts/download_embedding.py --list
 ```
 
-详见 `scripts/README.md` 获取更多信息。
+#### 3.2 配置 LLM 模型（GGUF 格式）
+
+**注意**: LLM 模型需要手动下载，然后使用配置工具。
+
+```bash
+# 1. 手动下载 GGUF 模型文件
+# 推荐源: https://huggingface.co/models?library=gguf
+# 将 .gguf 文件放入 ./models/ 目录
+
+# 2. 运行配置助手
+python scripts/setup_llm.py
+# 脚本会自动检测模型并写入 .env 配置
+```
+
+**推荐的 GGUF 模型**:
+- Qwen2-7B-Instruct (Q4_K_M) - 中文优化，约 4GB
+- Mistral-7B-Instruct (Q4_K_M) - 通用性好，约 4GB
 
 ### 5. 配置Qdrant
 
@@ -210,6 +228,7 @@ TinyMem0/                           # 项目根目录
 ├── scripts/                        # 实用脚本
 │   ├── __init__.py
 │   ├── download_embedding.py       # 嵌入模型下载工具
+│   ├── setup_llm.py                # LLM模型配置助手
 │   └── evaluate_system.py          # 记忆系统评测脚本
 ├── examples/                       # 使用示例
 │   └── basic_usage.py              # 基础使用示例 - 学习如何使用
