@@ -317,47 +317,118 @@ MemorySystem(collection_name: str = "memories")
 
 ## 本地LLM配置
 
-### 环境变量配置
+### 快速开始：一键下载与配置
 
-TinyMem0支持两种LLM模式：阿里云API或本地GGUF模型。通过环境变量`USE_LOCAL_LLM`控制：
+TinyMem0提供了便捷的命令行工具来下载和配置本地LLM模型：
 
 ```bash
-# Windows PowerShell
-$env:USE_LOCAL_LLM = "true"  # 使用本地LLM
-$env:USE_LOCAL_LLM = "false" # 使用阿里云API（默认）
+# 1. 交互式下载模型（推荐新手）
+python scripts/download_llm.py
 
-# Linux/Mac
-export USE_LOCAL_LLM=true
-export USE_LOCAL_LLM=false
+# 2. 配置已下载的模型
+python scripts/setup_llm.py
+
+# 3. 在.env中启用本地LLM
+# 在.env文件中添加：USE_LOCAL_LLM=true
 ```
 
-### 本地LLM相关环境变量
+### 支持的模型格式
+
+#### GGUF格式（量化，推荐）
+- **优点**: 内存占用低(4-8GB)，CPU可运行，速度快
+- **适合**: 低配机器，无GPU或显存不足
+- **推荐模型**: Qwen2-7B-Instruct-GGUF (Q4_K_M)
+
+#### SafeTensors格式（原始精度）
+- **优点**: 精度最高，无损量化
+- **适合**: 高配GPU(12GB+显存)，追求最佳效果
+- **推荐模型**: Qwen/Qwen2-7B-Instruct
+
+### 下载模型
+
+#### 方法1：使用下载脚本（推荐）
 
 ```bash
-# 必需：本地GGUF模型路径
-$env:LOCAL_MODEL_PATH = "path/to/your/model.gguf"
+# 交互式模式
+python scripts/download_llm.py
 
-# 可选：本地嵌入模型名称（默认：BAAI/bge-small-zh-v1.5）
-$env:LOCAL_EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
+# 命令行模式：下载GGUF模型
+python scripts/download_llm.py \
+  --model-id TheBloke/Qwen2-7B-Instruct-GGUF \
+  --format gguf \
+  --quant Q4_K_M
 
-# 可选：嵌入向量维度（默认：512用于本地模型，1536用于阿里云）
-$env:EMBEDDING_DIM = "512"
+# 命令行模式：下载SafeTensors模型
+python scripts/download_llm.py \
+  --model-id Qwen/Qwen2-7B-Instruct \
+  --format safetensors
 ```
 
-### 本地LLM依赖安装
+#### 方法2：手动下载
+
+**GGUF模型：**
+1. 访问 https://huggingface.co/models?library=gguf
+2. 搜索并下载 `.gguf` 文件
+3. 放置到 `./models/gguf/` 目录
+
+**SafeTensors模型：**
+```bash
+# 使用 huggingface-cli
+pip install huggingface_hub
+huggingface-cli download Qwen/Qwen2-7B-Instruct \
+  --local-dir ./models/safetensors/qwen2-7b
+```
+
+### 配置模型
+
+运行配置脚本，它会自动检测并配置已下载的模型：
 
 ```bash
-# 安装llama-cpp-python（支持GGUF模型）
+python scripts/setup_llm.py
+```
+
+脚本会：
+1. 扫描 `./models/gguf/` 和 `./models/safetensors/` 目录
+2. 列出所有可用模型
+3. 将选定的模型路径写入 `.env` 文件
+
+### 环境变量说明
+
+```bash
+# 切换到本地LLM模式
+USE_LOCAL_LLM=true
+
+# 本地模型路径（由 setup_llm.py 自动配置）
+LOCAL_MODEL_PATH=./models/gguf/qwen2-7b-q4_k_m.gguf
+
+# 可选：本地嵌入模型
+LOCAL_EMBEDDING_MODEL=BAAI/bge-small-zh-v1.5
+EMBEDDING_DIM=512
+```
+
+### 依赖安装
+
+```bash
+# GGUF格式需要
 pip install llama-cpp-python>=0.2.0
 
-# 安装sentence-transformers（本地嵌入模型）
+# SafeTensors格式需要
+pip install transformers>=4.35.0 torch>=2.0.0
+
+# 本地嵌入模型
 pip install sentence-transformers>=2.2.0
 ```
 
-### 推荐的本地模型
+### 硬件要求
 
-- **LLM模型**: Qwen2-7B-Instruct-GGUF, Llama3-8B-Chinese-Chat-GGUF
-- **嵌入模型**: BAAI/bge-small-zh-v1.5（中文优化，512维）
+#### GGUF格式（量化）
+- **7B Q4_K_M**: 最低4GB RAM/显存
+- **7B Q5_K_M**: 最低6GB RAM/显存
+- **13B Q4_K_M**: 最低8GB RAM/显存
+
+#### SafeTensors格式（FP16）
+- **7B模型**: 最低14GB显存，需要CUDA
+- **13B模型**: 最低26GB显存，需要CUDA
 
 ## LoCoMo评测指标说明
 

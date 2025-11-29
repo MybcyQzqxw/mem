@@ -108,100 +108,196 @@ def _download_from_huggingface(model_id: str, cache_dir: str) -> str:
 def download_llm_model(
     model_id: str,
     cache_dir: str = './models',
-    model_format: str = 'gguf'
+    model_format: str = 'auto',
+    quantization: Optional[str] = None,
+    source: str = 'huggingface'
 ) -> str:
     """
-    LLM模型下载（当前为占位函数，需手动下载）
-    
-    由于LLM模型体积巨大(3-20GB+)且有多种量化版本，
-    当前版本需要用户手动下载模型。
+    从 HuggingFace 下载 LLM 模型（支持 GGUF 和 SafeTensors）
     
     Args:
         model_id: 模型ID
-        cache_dir: 缓存目录
-        model_format: 模型格式 ('gguf' 或 'safetensors')
+            - GGUF: 如 "TheBloke/Qwen2-7B-Instruct-GGUF"
+            - SafeTensors: 如 "Qwen/Qwen2-7B-Instruct"
+        cache_dir: 缓存目录基础路径
+        model_format: 模型格式 ('auto', 'gguf', 'safetensors')
+            - 'auto': 自动检测（通过model_id判断）
+        quantization: GGUF量化版本（仅GGUF格式需要）
+            - 'Q4_K_M': 4-bit, 推荐
+            - 'Q5_K_M': 5-bit, 更高精度
+            - 'Q8_0': 8-bit, 接近原始
+        source: 下载源 ('huggingface' 或 'modelscope')
         
     Returns:
         下载后的模型路径
         
-    Raises:
-        NotImplementedError: 当前版本暂不支持自动下载
+    Examples:
+        >>> # 下载GGUF模型
+        >>> path = download_llm_model(
+        ...     "TheBloke/Qwen2-7B-Instruct-GGUF",
+        ...     quantization="Q4_K_M"
+        ... )
         
-    推荐下载源和步骤:
-    
-    ==== GGUF 格式模型 (量化，内存占用低) ====
-    
-    1. HuggingFace GGUF模型库:
-       https://huggingface.co/models?library=gguf
-       
-       推荐模型:
-       - Qwen2-7B-Instruct-GGUF (中文优化)
-       - Mistral-7B-Instruct-GGUF (通用性好)
-       - Llama-3-8B-Instruct-GGUF (Meta官方)
-       
-       量化版本选择:
-       - Q4_K_M: 4GB左右，推荐平衡
-       - Q5_K_M: 5GB左右，更高精度
-       - Q8_0: 8GB左右，接近原始精度
-    
-    2. ModelScope GGUF模型:
-       https://modelscope.cn/models
-       搜索关键词 "GGUF" + 模型名
-    
-    3. 下载步骤:
-       a. 访问模型页面
-       b. 下载 .gguf 文件
-       c. 放置到: ./models/gguf/
-       d. 运行: python scripts/setup_llm.py
-    
-    ==== SafeTensors 格式模型 (原始精度，内存占用高) ====
-    
-    1. HuggingFace 模型库:
-       https://huggingface.co/models?library=transformers
-       
-       推荐模型:
-       - Qwen/Qwen2-7B-Instruct
-       - mistralai/Mistral-7B-Instruct-v0.2
-       - meta-llama/Meta-Llama-3-8B-Instruct
-    
-    2. 下载步骤 (使用 huggingface-cli):
-       pip install huggingface_hub
-       huggingface-cli download Qwen/Qwen2-7B-Instruct --local-dir ./models/safetensors/qwen2-7b
-    
-    3. 或使用 git-lfs:
-       git lfs install
-       cd models/safetensors
-       git clone https://huggingface.co/Qwen/Qwen2-7B-Instruct
-    
-    ==== 硬件要求 ====
-    
-    GGUF (量化):
-      - 7B Q4: 最低4GB显存/RAM
-      - 7B Q5: 最低6GB显存/RAM
-      - 13B Q4: 最低8GB显存/RAM
-    
-    SafeTensors (FP16):
-      - 7B: 最低14GB显存
-      - 13B: 最低26GB显存
-      - 需要CUDA支持
-    
+        >>> # 下载SafeTensors模型
+        >>> path = download_llm_model(
+        ...     "Qwen/Qwen2-7B-Instruct",
+        ...     model_format="safetensors"
+        ... )
     """
-    raise NotImplementedError(
-        f"\n"
-        f"{'='*70}\n"
-        f"LLM模型需要手动下载\n"
-        f"{'='*70}\n"
-        f"\n"
-        f"模型格式: {model_format}\n"
-        f"目标目录: {cache_dir}/{model_format}/\n"
-        f"\n"
-        f"请参考函数文档中的下载指南，或运行:\n"
-        f"  python -c \"from utils.model_manager import download_llm_model; help(download_llm_model)\"\n"
-        f"\n"
-        f"下载完成后运行配置脚本:\n"
-        f"  python scripts/setup_llm.py\n"
-        f"{'='*70}\n"
-    )
+    # 自动检测格式
+    if model_format == 'auto':
+        if 'GGUF' in model_id or 'gguf' in model_id:
+            model_format = 'gguf'
+        else:
+            model_format = 'safetensors'
+    
+    print(f"📦 开始下载 {model_format.upper()} 格式模型: {model_id}")
+    
+    if model_format == 'gguf':
+        return _download_gguf_model(model_id, cache_dir, quantization, source)
+    elif model_format == 'safetensors':
+        return _download_safetensors_model(model_id, cache_dir, source)
+    else:
+        raise ValueError(f"不支持的模型格式: {model_format}")
+
+
+def _download_gguf_model(
+    model_id: str,
+    cache_dir: str,
+    quantization: Optional[str],
+    source: str
+) -> str:
+    """下载GGUF格式模型（内部函数）"""
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError:
+        raise ImportError(
+            "需要安装 huggingface_hub\n"
+            "运行: pip install huggingface_hub>=0.19.0"
+        )
+    
+    # 设置目标目录
+    target_dir = os.path.join(cache_dir, 'gguf')
+    os.makedirs(target_dir, exist_ok=True)
+    
+    # 如果未指定量化版本，尝试推荐
+    if not quantization:
+        print("⚠️  未指定量化版本，推荐使用 Q4_K_M")
+        quantization = "Q4_K_M"
+    
+    # 构建GGUF文件名（通常格式：模型名-量化版本.gguf）
+    # 需要列出仓库文件来找到精确文件名
+    print(f"🔍 正在查找 {quantization} 量化版本...")
+    
+    try:
+        from huggingface_hub import list_repo_files
+        
+        # 列出仓库中所有文件
+        files = list_repo_files(model_id)
+        gguf_files = [f for f in files if f.endswith('.gguf')]
+        
+        # 查找匹配的量化文件
+        target_file = None
+        for f in gguf_files:
+            if quantization.lower() in f.lower():
+                target_file = f
+                break
+        
+        if not target_file:
+            print(f"\n可用的GGUF文件:")
+            for f in gguf_files:
+                print(f"  - {f}")
+            raise ValueError(
+                f"未找到 {quantization} 量化版本\n"
+                f"请从上面的列表中选择一个文件"
+            )
+        
+        print(f"✅ 找到文件: {target_file}")
+        print(f"📥 开始下载到: {target_dir}")
+        
+        # 下载文件
+        downloaded_path = hf_hub_download(
+            repo_id=model_id,
+            filename=target_file,
+            cache_dir=cache_dir,
+            local_dir=target_dir,
+            local_dir_use_symlinks=False,
+            resume_download=True
+        )
+        
+        print(f"✅ 下载完成: {downloaded_path}")
+        return downloaded_path
+        
+    except Exception as e:
+        print(f"❌ 下载失败: {e}")
+        raise
+
+
+def _download_safetensors_model(
+    model_id: str,
+    cache_dir: str,
+    source: str
+) -> str:
+    """下载SafeTensors格式模型（内部函数）"""
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:
+        raise ImportError(
+            "需要安装 huggingface_hub\n"
+            "运行: pip install huggingface_hub>=0.19.0"
+        )
+    
+    # 设置目标目录
+    model_name = model_id.split('/')[-1]
+    target_dir = os.path.join(cache_dir, 'safetensors', model_name)
+    os.makedirs(os.path.dirname(target_dir), exist_ok=True)
+    
+    # 检查是否已存在
+    if os.path.exists(target_dir) and os.path.isdir(target_dir):
+        config_file = os.path.join(target_dir, 'config.json')
+        if os.path.exists(config_file):
+            print(f"✅ 模型已存在: {target_dir}")
+            return target_dir
+    
+    print(f"📥 开始下载到: {target_dir}")
+    print("⚠️  SafeTensors模型体积较大(10GB+)，请耐心等待...")
+    
+    try:
+        # 获取 HF Token（用于受限模型）
+        hf_token = os.getenv('HF_TOKEN', None)
+        
+        # 下载整个模型仓库
+        downloaded_path = snapshot_download(
+            repo_id=model_id,
+            cache_dir=cache_dir,
+            local_dir=target_dir,
+            local_dir_use_symlinks=False,
+            resume_download=True,
+            token=hf_token,
+            ignore_patterns=[
+                "*.bin",  # 忽略旧的PyTorch格式
+                "*.msgpack",
+                "*.h5",
+                "*.ot",
+                "*.onnx"
+            ]
+        )
+        
+        print(f"✅ 下载完成: {downloaded_path}")
+        return downloaded_path
+        
+    except Exception as e:
+        print(f"❌ 下载失败: {e}")
+        
+        # 检查是否为认证问题
+        if "401" in str(e) or "403" in str(e) or "authentication" in str(e).lower():
+            print("\n💡 提示: 此模型可能需要认证")
+            print("请设置 HF_TOKEN 环境变量:")
+            print("  1. 访问 https://huggingface.co/settings/tokens")
+            print("  2. 创建访问令牌")
+            print("  3. 添加到 .env 文件: HF_TOKEN=hf_your_token")
+        
+        raise
 
 
 
