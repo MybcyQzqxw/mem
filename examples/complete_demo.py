@@ -33,10 +33,10 @@ def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantizati
     print("📦 检查并下载模型")
     print("=" * 70)
     
-    # 1. 嵌入模型 (由MemorySystem自动管理)
+    # 1. 嵌入模型 (由MemorySystem自动管理，无需手动下载)
     print("\n1️⃣ 嵌入模型...")
     print(f"   模型: {embedding_model}")
-    print("   📁 保存到: ./models/embeddings (首次使用时自动下载)")
+    print("   ℹ️  由 MemorySystem 自动管理，首次使用时自动下载")
     
     # 2. 检查LLM模型
     print("\n2️⃣ LLM模型...")
@@ -44,28 +44,9 @@ def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantizati
     if not use_local_llm:
         print("   ⏭️  云端API模式，无需下载")
         print("\n" + "=" * 70)
-        return
+        return None
     
-    # 检查模型是否已存在
-    if model_format == 'gguf':
-        model_dir = Path('./models/gguf')
-        if model_dir.exists():
-            gguf_files = list(model_dir.glob('*.gguf'))
-            if gguf_files:
-                print(f"   ✅ 模型已存在: {gguf_files[0]}")
-                print("\n" + "=" * 70)
-                return
-    else:
-        model_dir = Path('./models/safetensors') / model_shortcut
-        if model_dir.exists() and list(model_dir.glob('*')):
-            print(f"   ✅ 模型已存在: {model_dir}")
-            print("\n" + "=" * 70)
-            return
-    
-    # 模型不存在，调用下载工具
-    print(f"   ❌ 模型不存在，准备下载...\n")
-    
-    # 添加scripts到路径并调用下载函数
+    # 调用底层下载工具
     sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
     from download_llm import download_model_with_shortcut
     
@@ -77,32 +58,19 @@ def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantizati
             verbose=True
         )
         
-        print(f"\n   ✅ 模型下载完成！")
+        print(f"\n   ✅ 模型就绪")
         print(f"   📂 位置: {downloaded_path}")
-        
-        # 更新 .env 文件中的模型路径
-        env_file = Path(__file__).parent.parent / '.env'
-        if env_file.exists():
-            with open(env_file, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            
-            with open(env_file, 'w', encoding='utf-8') as f:
-                for line in lines:
-                    if line.startswith('LOCAL_MODEL_PATH='):
-                        f.write(f'LOCAL_MODEL_PATH={downloaded_path}\n')
-                        print(f"   🔧 已更新 .env: LOCAL_MODEL_PATH={downloaded_path}")
-                    else:
-                        f.write(line)
+        print("\n" + "=" * 70)
+        return downloaded_path
         
     except Exception as e:
         print(f"\n   ❌ 下载失败: {e}")
-        print(f"   💡 你可以手动运行:")
-        print(f"   python scripts/download_llm.py --model {model_shortcut} --format {model_format}")
-    
-    print("\n" + "=" * 70)
+        print("   💡 请检查网络连接或手动下载模型")
+        print("\n" + "=" * 70)
+        return None
 
 
-def main(use_local_llm=None, local_model_path=None, local_embedding_model=None, embedding_dim=None, embedding_cache_dir=None):
+def main(use_local_llm=None, local_model_path=None, local_embedding_model=None, embedding_dim=None):
     """主函数 - 演示记忆系统的使用
     
     Args:
@@ -110,7 +78,6 @@ def main(use_local_llm=None, local_model_path=None, local_embedding_model=None, 
         local_model_path: 本地模型路径
         local_embedding_model: 本地嵌入模型
         embedding_dim: 嵌入向量维度
-        embedding_cache_dir: 嵌入模型缓存目录
     """
     import os
     # 使用传入的参数，不再读取.env
@@ -129,8 +96,7 @@ def main(use_local_llm=None, local_model_path=None, local_embedding_model=None, 
         use_local_llm=use_local,
         local_model_path=local_model_path,
         local_embedding_model=local_embedding_model,
-        embedding_dim=embedding_dim,
-        embedding_cache_dir=embedding_cache_dir
+        embedding_dim=embedding_dim
     )
     
     # 示例1: 写入记忆
@@ -196,8 +162,7 @@ def example_memory_update():
         use_local_llm=use_local,
         local_model_path=local_model_path,
         local_embedding_model=local_embedding_model,
-        embedding_dim=embedding_dim,
-        embedding_cache_dir=embedding_cache_dir
+        embedding_dim=embedding_dim
     )
     
     # 初始记忆
@@ -254,8 +219,7 @@ def example_multi_user():
         use_local_llm=use_local,
         local_model_path=local_model_path,
         local_embedding_model=local_embedding_model,
-        embedding_dim=embedding_dim,
-        embedding_cache_dir=embedding_cache_dir
+        embedding_dim=embedding_dim
     )
     
     # 用户A的记忆
@@ -309,8 +273,7 @@ def example_fact_extraction():
         use_local_llm=use_local,
         local_model_path=local_model_path,
         local_embedding_model=local_embedding_model,
-        embedding_dim=embedding_dim,
-        embedding_cache_dir=embedding_cache_dir
+        embedding_dim=embedding_dim
     )
     
     # 测试不同类型的对话
@@ -349,8 +312,7 @@ def example_advanced_search():
         use_local_llm=use_local,
         local_model_path=local_model_path,
         local_embedding_model=local_embedding_model,
-        embedding_dim=embedding_dim,
-        embedding_cache_dir=embedding_cache_dir
+        embedding_dim=embedding_dim
     )
     
     # 准备丰富的记忆数据
@@ -475,13 +437,6 @@ if __name__ == "__main__":
     )
     
     parser.add_argument(
-        '--embedding-cache-dir',
-        type=str,
-        default='./models/embeddings',
-        help='嵌入模型缓存目录 (默认: ./models/embeddings)'
-    )
-    
-    parser.add_argument(
         '--skip-download', '-s',
         action='store_true',
         help='跳过模型下载，直接运行demo'
@@ -503,48 +458,21 @@ if __name__ == "__main__":
     
     # 下载模型(除非明确跳过)
     if not args.skip_download and use_local:
-        download_models(
+        local_model_path = download_models(
             model_shortcut=args.model,
             model_format=args.format,
             quantization=args.quant,
             use_local_llm=use_local,
             embedding_model=local_embedding_model
         )
-        
-        # 构建模型路径
-        if args.format == 'gguf':
-            # GGUF文件直接在models/gguf目录下
-            model_dir = Path('./models/gguf')
-            if model_dir.exists():
-                # 查找匹配量化精度的文件
-                pattern = f'*{args.quant}*.gguf'
-                gguf_files = list(model_dir.glob(pattern))
-                if gguf_files:
-                    local_model_path = str(gguf_files[0])
-        else:
-            # SafeTensors在子目录
-            model_dir = Path('./models/safetensors') / args.model
-            if model_dir.exists():
-                local_model_path = str(model_dir)
-        
-        print("\n")
     else:
         if args.skip_download:
             print("⏭️  跳过模型下载\n")
-        # 即使跳过下载，也尝试构建路径
-        if use_local and args.format == 'gguf':
-            model_dir = Path('./models/gguf')
-            if model_dir.exists():
-                pattern = f'*{args.quant}*.gguf'
-                gguf_files = list(model_dir.glob(pattern))
-                if gguf_files:
-                    local_model_path = str(gguf_files[0])
     
     # 运行主示例，传递参数
     main(
         use_local_llm=use_local,
         local_model_path=local_model_path,
         local_embedding_model=local_embedding_model,
-        embedding_dim=embedding_dim,
-        embedding_cache_dir=args.embedding_cache_dir
+        embedding_dim=embedding_dim
     )
