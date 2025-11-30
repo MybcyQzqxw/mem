@@ -19,13 +19,14 @@ load_dotenv()
 from tinymem0 import MemorySystem
 
 
-def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantization='Q4_K_M'):
+def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantization='Q4_K_M', use_local_llm=True):
     """自动下载模型
     
     Args:
         model_shortcut: 模型快捷名称 (qwen2.5-7b, mistral-7b等)
         model_format: 模型格式 (gguf或safetensors)
         quantization: GGUF量化精度 (Q4_K_M, Q5_K_M等，仅gguf格式需要)
+        use_local_llm: 是否使用本地LLM
     """
     print("=" * 70)
     print("📦 检查并下载模型")
@@ -38,9 +39,8 @@ def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantizati
     
     # 检查LLM模型
     print("\n2️⃣ LLM模型...")
-    use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
     
-    if not use_local:
+    if not use_local_llm:
         print("   ⏭️  云端API模式，无需下载")
         print("\n" + "=" * 70)
         return
@@ -422,7 +422,6 @@ if __name__ == "__main__":
     parser.add_argument(
         '--use-local',
         action='store_true',
-        default=None,
         help='使用本地LLM（优先级高于.env）'
     )
     
@@ -466,7 +465,7 @@ if __name__ == "__main__":
     
     # 下载模型（除非明确跳过）
     if not args.skip_download and use_local:
-        download_models(args.model, args.format, args.quant)
+        download_models(args.model, args.format, args.quant, use_local)
         
         # 构建模型路径
         if args.format == 'gguf':

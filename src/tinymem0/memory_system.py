@@ -124,7 +124,19 @@ class MemorySystem:
             提取的事实列表
         """
         self._log_event("facts_extract_start", level="debug")
-        result = call_llm_with_prompt(self.llm_model, FACT_EXTRACTION_PROMPT, conversation)
+        
+        if self.use_local_llm:
+            # 使用本地LLM
+            from utils.inference import call_local_llm
+            result = call_local_llm(
+                model_path=self.local_model_path,
+                system_prompt=FACT_EXTRACTION_PROMPT,
+                user_prompt=conversation
+            )
+        else:
+            # 使用云端API
+            result = call_llm_with_prompt(self.llm_model, FACT_EXTRACTION_PROMPT, conversation)
+        
         if result:
             parsed = parse_json_response(result, 'facts')
             # 确保返回的是列表
@@ -145,24 +157,22 @@ class MemorySystem:
         Returns:
             向量嵌入
         """
-        use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
-        
-        if use_local:
+        if self.use_local_llm:
             try:
                 from sentence_transformers import SentenceTransformer
                 # 使用全局嵌入模型实例
                 if not hasattr(self, '_embedding_model_instance'):
-                    model_name = os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
+                    model_name = self.local_embedding_model
                     
                     # 检查是否是本地路径
                     if os.path.exists(model_name):
                         self._log_event("loading_embedding_model", model=model_name, level="info")
                         self._embedding_model_instance = SentenceTransformer(model_name)
                     else:
-                        # 尝试从HuggingFace或本地缓存加载
+                        # 尝试从SentenceTransformer下载
                         self._log_event("loading_embedding_model", model=model_name, level="info")
                         print(f"正在加载嵌入模型: {model_name}")
-                        print("提示: 如果下载失败，请运行: python download_embedding_model.py")
+                        self._embedding_model_instance = SentenceTransformer(model_name)
                         self._embedding_model_instance = SentenceTransformer(model_name)
                 
                 self._log_event("embedding_start", level="debug", op=operation)
@@ -263,12 +273,21 @@ class MemorySystem:
                 "existing_memories": existing_memories
             }
             
-            result = call_llm_with_prompt(
-                self.llm_model, 
-                MEMORY_PROCESSING_PROMPT, 
-                # 把 Python 对象转换为 JSON 字符串
-                json.dumps(input_data, ensure_ascii=False)
-            )
+            if self.use_local_llm:
+                # 使用本地LLM
+                from utils.inference import call_local_llm
+                result = call_local_llm(
+                    model_path=self.local_model_path,
+                    system_prompt=MEMORY_PROCESSING_PROMPT,
+                    user_prompt=json.dumps(input_data, ensure_ascii=False)
+                )
+            else:
+                # 使用云端API
+                result = call_llm_with_prompt(
+                    self.llm_model, 
+                    MEMORY_PROCESSING_PROMPT, 
+                    json.dumps(input_data, ensure_ascii=False)
+                )
             
             if result:
                 parsed = parse_json_response(result, 'memory')
