@@ -201,10 +201,21 @@ def _download_gguf_model(
         
         # 查找匹配的量化文件
         target_file = None
+        
+        # 优先匹配完整的量化名称（如 Q4_K_M）
         for f in gguf_files:
-            if quantization.lower() in f.lower():
+            if quantization.upper() in f.upper():
                 target_file = f
                 break
+        
+        # 如果没找到，尝试匹配类似的（如 Q4_K_M -> q4_k_m）
+        if not target_file:
+            quant_normalized = quantization.replace('_', '-').lower()
+            for f in gguf_files:
+                f_normalized = f.replace('_', '-').lower()
+                if quant_normalized in f_normalized:
+                    target_file = f
+                    break
         
         if not target_file:
             print(f"\n❌ 未找到 {quantization} 量化版本")
@@ -239,10 +250,7 @@ def _download_gguf_model(
         downloaded_path = hf_hub_download(
             repo_id=model_id,
             filename=target_file,
-            cache_dir=cache_dir,
-            local_dir=target_dir,
-            local_dir_use_symlinks=False,
-            resume_download=True
+            local_dir=target_dir
         )
         
         print(f"\n✅ 下载完成: {downloaded_path}")
@@ -289,10 +297,7 @@ def _download_safetensors_model(
         # 下载整个模型仓库
         downloaded_path = snapshot_download(
             repo_id=model_id,
-            cache_dir=cache_dir,
             local_dir=target_dir,
-            local_dir_use_symlinks=False,
-            resume_download=True,
             token=hf_token,
             ignore_patterns=[
                 "*.bin",  # 忽略旧的PyTorch格式

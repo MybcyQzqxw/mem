@@ -20,16 +20,18 @@ from utils.model_manager import download_llm_model
 # 推荐的GGUF模型列表
 GGUF_MODELS = {
     '1': {
-        'id': 'TheBloke/Qwen2-7B-Instruct-GGUF',
-        'name': 'Qwen2-7B-Instruct',
+        'id': 'bartowski/Qwen2.5-7B-Instruct-GGUF',
+        'name': 'Qwen2.5-7B-Instruct',
+        'short': 'qwen2.5-7b',
         'quant': 'Q4_K_M',
         'size': '~4.4GB',
         'lang': '中文优化',
-        'description': '推荐：阿里云通义千问2代，中文效果优秀'
+        'description': '推荐：阿里云通义千问2.5代，中文效果优秀'
     },
     '2': {
         'id': 'TheBloke/Mistral-7B-Instruct-v0.2-GGUF',
         'name': 'Mistral-7B-Instruct-v0.2',
+        'short': 'mistral-7b',
         'quant': 'Q4_K_M',
         'size': '~4.1GB',
         'lang': '多语言',
@@ -38,6 +40,7 @@ GGUF_MODELS = {
     '3': {
         'id': 'TheBloke/Meta-Llama-3-8B-Instruct-GGUF',
         'name': 'Llama-3-8B-Instruct',
+        'short': 'llama3-8b',
         'quant': 'Q4_K_M',
         'size': '~4.7GB',
         'lang': '多语言',
@@ -46,6 +49,7 @@ GGUF_MODELS = {
     '4': {
         'id': 'TheBloke/Yi-6B-Chat-GGUF',
         'name': 'Yi-6B-Chat',
+        'short': 'yi-6b',
         'quant': 'Q4_K_M',
         'size': '~3.5GB',
         'lang': '中英双语',
@@ -56,8 +60,9 @@ GGUF_MODELS = {
 # 推荐的SafeTensors模型列表
 SAFETENSORS_MODELS = {
     '1': {
-        'id': 'Qwen/Qwen2-7B-Instruct',
-        'name': 'Qwen2-7B-Instruct',
+        'id': 'Qwen/Qwen2.5-7B-Instruct',
+        'name': 'Qwen2.5-7B-Instruct',
+        'short': 'qwen2.5-7b',
         'size': '~15GB',
         'lang': '中文优化',
         'description': '推荐：原始精度，最佳中文效果，需12GB+显存'
@@ -65,6 +70,7 @@ SAFETENSORS_MODELS = {
     '2': {
         'id': 'mistralai/Mistral-7B-Instruct-v0.2',
         'name': 'Mistral-7B-Instruct-v0.2',
+        'short': 'mistral-7b',
         'size': '~14GB',
         'lang': '多语言',
         'description': 'Mistral官方，需12GB+显存'
@@ -72,11 +78,22 @@ SAFETENSORS_MODELS = {
     '3': {
         'id': 'meta-llama/Meta-Llama-3-8B-Instruct',
         'name': 'Llama-3-8B-Instruct',
+        'short': 'llama3-8b',
         'size': '~16GB',
         'lang': '多语言',
         'description': 'Meta官方，需14GB+显存（需申请访问权限）'
     }
 }
+
+# 简称到模型的映射
+MODEL_SHORTCUTS = {}
+for models in [GGUF_MODELS, SAFETENSORS_MODELS]:
+    for key, info in models.items():
+        if 'short' in info:
+            MODEL_SHORTCUTS[info['short']] = {
+                'id': info['id'],
+                'name': info['name']
+            }
 
 
 def print_banner():
@@ -223,6 +240,60 @@ def interactive_download():
         print("=" * 70)
 
 
+def download_model_with_shortcut(model_shortcut='qwen2.5-7b', model_format='gguf', quantization='Q4_K_M', verbose=True):
+    """使用简称下载模型（供其他脚本调用）
+    
+    Args:
+        model_shortcut: 模型简称 (qwen2.5-7b, mistral-7b等)
+        model_format: 模型格式 (gguf或safetensors)
+        quantization: GGUF量化级别 (Q4_K_M, Q5_K_M等)
+        verbose: 是否打印详细信息
+    
+    Returns:
+        str: 下载的模型路径
+    
+    Raises:
+        ValueError: 不支持的模型简称
+        Exception: 下载失败
+    """
+    # 根据格式选择正确的模型列表
+    if model_format == 'gguf':
+        model_list = GGUF_MODELS
+    else:
+        model_list = SAFETENSORS_MODELS
+    
+    # 查找匹配的模型
+    model_info = None
+    for key, info in model_list.items():
+        if info.get('short') == model_shortcut:
+            model_info = info
+            break
+    
+    if not model_info:
+        raise ValueError(f"不支持的模型简称: {model_shortcut}. 可用: {[m['short'] for m in model_list.values() if 'short' in m]}")
+    
+    model_id = model_info['id']
+    
+    if verbose:
+        print(f"🔍 模型: {model_shortcut} ({model_info['name']})")
+        print(f"🔗 仓库: {model_id}")
+        print(f"📁 格式: {model_format}")
+        if model_format == 'gguf':
+            print(f"🔧 量化: {quantization}")
+    
+    # 调用下载
+    from utils.model_manager.downloader import download_llm_model
+    
+    downloaded_path = download_llm_model(
+        model_id=model_id,
+        cache_dir='./models',
+        model_format=model_format,
+        quantization=quantization if model_format == 'gguf' else None
+    )
+    
+    return downloaded_path
+
+
 def command_line_download(args):
     """命令行下载模式"""
     print_banner()
@@ -231,7 +302,14 @@ def command_line_download(args):
     model_format = args.format
     quantization = args.quant
     
-    print(f"📦 模型ID: {model_id}")
+    # 检查是否使用简称
+    if model_id in MODEL_SHORTCUTS:
+        print(f"🔍 识别到简称: {model_id}")
+        model_info = MODEL_SHORTCUTS[model_id]
+        model_id = model_info['id']
+        print(f"📦 对应模型: {model_info['name']}")
+        print(f"🔗 模型ID: {model_id}")
+    
     print(f"📁 格式: {model_format}")
     if model_format == 'gguf':
         print(f"🔧 量化: {quantization}")
@@ -239,6 +317,7 @@ def command_line_download(args):
     try:
         print(f"\n⏳ 开始下载...")
         
+        from utils.model_manager.downloader import download_llm_model
         downloaded_path = download_llm_model(
             model_id=model_id,
             cache_dir='./models',
@@ -269,23 +348,28 @@ def main():
   # 交互式模式（推荐新手）
   python scripts/download_llm.py
 
-  # 下载GGUF模型
+  # 使用简称下载GGUF模型
+  python scripts/download_llm.py --model qwen2.5-7b --format gguf
+  python scripts/download_llm.py --model mistral-7b --format gguf
+
+  # 使用简称下载SafeTensors模型  
+  python scripts/download_llm.py --model qwen2.5-7b --format safetensors
+
+  # 使用完整ID下载
   python scripts/download_llm.py \\
-    --model-id TheBloke/Qwen2-7B-Instruct-GGUF \\
+    --model Qwen/Qwen2.5-7B-Instruct-GGUF \\
     --format gguf \\
     --quant Q4_K_M
 
-  # 下载SafeTensors模型
-  python scripts/download_llm.py \\
-    --model-id Qwen/Qwen2-7B-Instruct \\
-    --format safetensors
+可用简称: qwen2.5-7b, mistral-7b, llama3-8b, yi-6b
         """
     )
     
     parser.add_argument(
-        '--model-id',
+        '--model', '-m',
         type=str,
-        help='HuggingFace模型ID'
+        dest='model_id',
+        help='模型简称或HuggingFace模型ID (如: qwen2.5-7b, mistral-7b, 或完整ID)'
     )
     
     parser.add_argument(

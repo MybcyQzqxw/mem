@@ -6,6 +6,7 @@
 """
 import sys
 import os
+import argparse
 from pathlib import Path
 
 # 添加项目根目录到路径
@@ -18,62 +19,69 @@ load_dotenv()
 from tinymem0 import MemorySystem
 
 
-def download_models():
-    """下载必要的模型"""
+def download_models(model_shortcut='qwen2.5-7b', model_format='gguf'):
+    """自动下载模型
+    
+    Args:
+        model_shortcut: 模型快捷名称 (qwen2.5-7b, mistral-7b等)
+        model_format: 模型格式 (gguf或safetensors)
+    """
     print("=" * 70)
     print("📦 检查并下载模型")
     print("=" * 70)
     
-    # 下载嵌入模型 - 使用sentence_transformers直接加载（会自动下载）
-    print("\n1️⃣ 准备嵌入模型...")
+    # 检查嵌入模型
+    print("\n1️⃣ 嵌入模型...")
     embedding_model = os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
-    print(f"   模型: {embedding_model}")
+    print(f"   {embedding_model} (首次使用时自动下载)")
     
-    try:
-        from sentence_transformers import SentenceTransformer
-        print("   📥 首次使用会自动下载，请稍候...")
-        model = SentenceTransformer(embedding_model)
-        print("   ✅ 嵌入模型准备完成")
-        del model  # 释放内存
-    except Exception as e:
-        print(f"   ⚠️ 嵌入模型加载失败: {e}")
-        print("   💡 将在记忆系统初始化时自动下载")
-    
-    # 下载LLM模型（GGUF格式）
-    print("\n2️⃣ 检查LLM模型...")
+    # 检查LLM模型
+    print("\n2️⃣ LLM模型...")
     use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
     
-    if use_local:
-        # 检查模型是否已存在
-        model_path = os.getenv("LOCAL_MODEL_PATH", "models/Mistral-7B-Instruct-v0.3.Q4_K_M.gguf")
-        
-        if Path(model_path).exists():
-            print(f"   ✅ 模型已存在: {model_path}")
-        else:
-            print(f"   ❌ 模型不存在: {model_path}")
-            print(f"   💡 下载模型（约4-5GB，需要几分钟）...")
-            
-            from utils.model_manager.downloader import download_llm_model
-            
-            try:
-                # 使用Qwen2.5-7B（中文效果好）
-                download_llm_model(
-                    model_id="Qwen/Qwen2.5-7B-Instruct-GGUF",
-                    model_format="gguf",
-                    quantization="Q4_K_M"
-                )
-                
-                # 更新.env中的路径
-                new_model_path = "./models/gguf/qwen2.5-7b-instruct-q4_k_m.gguf"
-                print(f"\n   ✅ 模型下载完成: {new_model_path}")
-                print(f"   💡 请更新.env文件中的LOCAL_MODEL_PATH={new_model_path}")
-                
-            except Exception as e:
-                print(f"   ❌ 模型下载失败: {e}")
-                print("   💡 你可以手动运行: python scripts/download_llm.py")
-                print("   ⚠️  将跳过需要LLM的功能（事实提取）")
+    if not use_local:
+        print("   ⏭️  云端API模式，无需下载")
+        print("\n" + "=" * 70)
+        return
+    
+    # 检查模型是否已存在
+    if model_format == 'gguf':
+        model_dir = Path('./models/gguf')
+        if model_dir.exists():
+            gguf_files = list(model_dir.glob('*.gguf'))
+            if gguf_files:
+                print(f"   ✅ 模型已存在: {gguf_files[0]}")
+                print("\n" + "=" * 70)
+                return
     else:
-        print("   ⏭️  使用云端API，无需下载LLM模型")
+        model_dir = Path('./models/safetensors') / model_shortcut
+        if model_dir.exists() and list(model_dir.glob('*')):
+            print(f"   ✅ 模型已存在: {model_dir}")
+            print("\n" + "=" * 70)
+            return
+    
+    # 模型不存在，调用下载工具
+    print(f"   ❌ 模型不存在，准备下载...\n")
+    
+    # 添加scripts到路径并调用下载函数
+    sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+    from download_llm import download_model_with_shortcut
+    
+    try:
+        downloaded_path = download_model_with_shortcut(
+            model_shortcut=model_shortcut,
+            model_format=model_format,
+            quantization='Q4_K_M',
+            verbose=True
+        )
+        
+        print(f"\n   ✅ 模型下载完成！")
+        print(f"   📂 位置: {downloaded_path}")
+        
+    except Exception as e:
+        print(f"\n   ❌ 下载失败: {e}")
+        print(f"   💡 你可以手动运行:")
+        print(f"   python scripts/download_llm.py --model {model_shortcut} --format {model_format}")
     
     print("\n" + "=" * 70)
 
@@ -328,10 +336,62 @@ def example_advanced_search():
 
 
 if __name__ == "__main__":
-    # 先下载模型
-    download_models()
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(
+        description='TinyMem0 记忆系统完整示例 - 自动下载模型并运行',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+示例用法:
+  # 使用默认模型 (Qwen2.5-7B GGUF格式)
+  python examples/complete_demo.py
+  
+  # 指定其他模型
+  python examples/complete_demo.py --model mistral-7b --format gguf
+  python examples/complete_demo.py --model qwen2.5-3b --format safetensors
+  
+  # 跳过模型下载（使用云端API或已有模型）
+  python examples/complete_demo.py --skip-download
+
+支持的模型:
+  qwen2.5-7b, qwen2.5-3b, qwen2.5-1.5b
+  mistral-7b, llama3-8b, yi-6b
+
+支持的格式:
+  gguf       - CPU推理，4-8GB (推荐)
+  safetensors - GPU推理，14-26GB
+        ''')
     
-    print("\n")
+    parser.add_argument(
+        '--model', '-m',
+        type=str,
+        default='mistral-7b',
+        choices=['qwen2.5-7b', 'qwen2.5-3b', 'qwen2.5-1.5b',
+                'mistral-7b', 'llama3-8b', 'yi-6b'],
+        help='选择模型 (默认: mistral-7b, 使用TheBloke/Mistral-7B-Instruct-v0.2-GGUF)'
+    )
+    
+    parser.add_argument(
+        '--format', '-f',
+        type=str,
+        default='gguf',
+        choices=['gguf', 'safetensors'],
+        help='模型格式 (默认: gguf)'
+    )
+    
+    parser.add_argument(
+        '--skip-download', '-s',
+        action='store_true',
+        help='跳过模型下载，直接运行demo'
+    )
+    
+    args = parser.parse_args()
+    
+    # 下载模型（除非明确跳过）
+    if not args.skip_download:
+        download_models(args.model, args.format)
+        print("\n")
+    else:
+        print("⏭️  跳过模型下载\n")
     
     # 运行主示例
     main()
