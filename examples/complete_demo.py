@@ -19,7 +19,7 @@ load_dotenv()
 from tinymem0 import MemorySystem
 
 
-def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantization='Q4_K_M', use_local_llm=True):
+def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantization='Q4_K_M', use_local_llm=True, embedding_model='BAAI/bge-small-zh-v1.5'):
     """自动下载模型
     
     Args:
@@ -27,17 +27,18 @@ def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantizati
         model_format: 模型格式 (gguf或safetensors)
         quantization: GGUF量化精度 (Q4_K_M, Q5_K_M等，仅gguf格式需要)
         use_local_llm: 是否使用本地LLM
+        embedding_model: 嵌入模型名称
     """
     print("=" * 70)
     print("📦 检查并下载模型")
     print("=" * 70)
     
-    # 检查嵌入模型
+    # 1. 嵌入模型 (由MemorySystem自动管理)
     print("\n1️⃣ 嵌入模型...")
-    embedding_model = os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
-    print(f"   {embedding_model} (首次使用时自动下载)")
+    print(f"   模型: {embedding_model}")
+    print("   📁 保存到: ./models/embeddings (首次使用时自动下载)")
     
-    # 检查LLM模型
+    # 2. 检查LLM模型
     print("\n2️⃣ LLM模型...")
     
     if not use_local_llm:
@@ -101,7 +102,7 @@ def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantizati
     print("\n" + "=" * 70)
 
 
-def main(use_local_llm=None, local_model_path=None, local_embedding_model=None, embedding_dim=None):
+def main(use_local_llm=None, local_model_path=None, local_embedding_model=None, embedding_dim=None, embedding_cache_dir=None):
     """主函数 - 演示记忆系统的使用
     
     Args:
@@ -109,10 +110,11 @@ def main(use_local_llm=None, local_model_path=None, local_embedding_model=None, 
         local_model_path: 本地模型路径
         local_embedding_model: 本地嵌入模型
         embedding_dim: 嵌入向量维度
+        embedding_cache_dir: 嵌入模型缓存目录
     """
     import os
-    # 参数优先级：函数参数 > 环境变量
-    use_local = use_local_llm if use_local_llm is not None else (os.getenv("USE_LOCAL_LLM", "false").lower() == "true")
+    # 使用传入的参数，不再读取.env
+    use_local = use_local_llm if use_local_llm is not None else False
     
     if not use_local and not os.getenv("DASHSCOPE_API_KEY"):
         raise RuntimeError("未找到 DASHSCOPE_API_KEY，请在 .env 中配置。")
@@ -127,7 +129,8 @@ def main(use_local_llm=None, local_model_path=None, local_embedding_model=None, 
         use_local_llm=use_local,
         local_model_path=local_model_path,
         local_embedding_model=local_embedding_model,
-        embedding_dim=embedding_dim
+        embedding_dim=embedding_dim,
+        embedding_cache_dir=embedding_cache_dir
     )
     
     # 示例1: 写入记忆
@@ -188,7 +191,14 @@ def example_memory_update():
     print("🔄 示例2: 记忆更新")
     print("=" * 70)
     
-    memory = MemorySystem(collection_name="demo_update")
+    memory = MemorySystem(
+        collection_name="demo_update",
+        use_local_llm=use_local,
+        local_model_path=local_model_path,
+        local_embedding_model=local_embedding_model,
+        embedding_dim=embedding_dim,
+        embedding_cache_dir=embedding_cache_dir
+    )
     
     # 初始记忆
     print("\n1️⃣ 写入初始信息...")
@@ -239,7 +249,14 @@ def example_multi_user():
     print("👥 示例3: 多用户场景")
     print("=" * 70)
     
-    memory = MemorySystem(collection_name="demo_multiuser")
+    memory = MemorySystem(
+        collection_name="demo_multiuser",
+        use_local_llm=use_local,
+        local_model_path=local_model_path,
+        local_embedding_model=local_embedding_model,
+        embedding_dim=embedding_dim,
+        embedding_cache_dir=embedding_cache_dir
+    )
     
     # 用户A的记忆
     print("\n1️⃣ 用户A的对话...")
@@ -287,7 +304,14 @@ def example_fact_extraction():
     print("📊 示例4: 事实提取")
     print("=" * 70)
     
-    memory = MemorySystem(collection_name="demo_facts")
+    memory = MemorySystem(
+        collection_name="demo_facts",
+        use_local_llm=use_local,
+        local_model_path=local_model_path,
+        local_embedding_model=local_embedding_model,
+        embedding_dim=embedding_dim,
+        embedding_cache_dir=embedding_cache_dir
+    )
     
     # 测试不同类型的对话
     test_cases = [
@@ -320,7 +344,14 @@ def example_advanced_search():
     print("🔎 示例5: 高级搜索")
     print("=" * 70)
     
-    memory = MemorySystem(collection_name="demo_search")
+    memory = MemorySystem(
+        collection_name="demo_search",
+        use_local_llm=use_local,
+        local_model_path=local_model_path,
+        local_embedding_model=local_embedding_model,
+        embedding_dim=embedding_dim,
+        embedding_cache_dir=embedding_cache_dir
+    )
     
     # 准备丰富的记忆数据
     print("\n1️⃣ 准备测试数据...")
@@ -444,6 +475,13 @@ if __name__ == "__main__":
     )
     
     parser.add_argument(
+        '--embedding-cache-dir',
+        type=str,
+        default='./models/embeddings',
+        help='嵌入模型缓存目录 (默认: ./models/embeddings)'
+    )
+    
+    parser.add_argument(
         '--skip-download', '-s',
         action='store_true',
         help='跳过模型下载，直接运行demo'
@@ -451,21 +489,27 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # 确定是否使用本地LLM：--use-cloud > --use-local > .env
+    # 确定是否使用本地LLM：--use-cloud > --use-local > 默认False
     if args.use_cloud:
         use_local = False
     elif args.use_local:
         use_local = True
     else:
-        use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
+        use_local = False  # 默认使用云端API
     
     local_model_path = None
-    local_embedding_model = args.embedding_model or os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
+    local_embedding_model = args.embedding_model or "BAAI/bge-small-zh-v1.5"
     embedding_dim = args.embedding_dim
     
-    # 下载模型（除非明确跳过）
+    # 下载模型(除非明确跳过)
     if not args.skip_download and use_local:
-        download_models(args.model, args.format, args.quant, use_local)
+        download_models(
+            model_shortcut=args.model,
+            model_format=args.format,
+            quantization=args.quant,
+            use_local_llm=use_local,
+            embedding_model=local_embedding_model
+        )
         
         # 构建模型路径
         if args.format == 'gguf':
@@ -501,5 +545,6 @@ if __name__ == "__main__":
         use_local_llm=use_local,
         local_model_path=local_model_path,
         local_embedding_model=local_embedding_model,
-        embedding_dim=embedding_dim
+        embedding_dim=embedding_dim,
+        embedding_cache_dir=args.embedding_cache_dir
     )

@@ -47,21 +47,21 @@ class MemorySystem:
             log_level: 日志级别 (debug | info | warn | error)
             log_file: 日志文件路径
             qdrant_path: Qdrant数据存储路径
-            use_local_llm: 是否使用本地LLM（优先级：参数 > .env）
-            local_model_path: 本地LLM路径（优先级：参数 > .env）
-            local_embedding_model: 本地嵌入模型（优先级：参数 > .env）
-            embedding_dim: 嵌入向量维度（优先级：参数 > .env）
+            use_local_llm: 是否使用本地LLM
+            local_model_path: 本地LLM路径
+            local_embedding_model: 本地嵌入模型
+            embedding_dim: 嵌入向量维度
         """
         self.collection_name = collection_name
         self.qdrant_path = qdrant_path or "./qdrant_data"
         self.llm_model = llm_model
         self.embedding_model = embedding_model
         
-        # 参数优先级：构造参数 > 环境变量 > 默认值
-        self.use_local_llm = use_local_llm if use_local_llm is not None else (os.getenv("USE_LOCAL_LLM", "false").lower() == "true")
-        self.local_model_path = local_model_path or os.getenv("LOCAL_MODEL_PATH", "")
-        self.local_embedding_model = local_embedding_model or os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
-        self.embedding_dim = embedding_dim or int(os.getenv("EMBEDDING_DIM", "512" if self.use_local_llm else "1536"))
+        # 参数优先级：构造参数 > 默认值（不再读取.env）
+        self.use_local_llm = use_local_llm if use_local_llm is not None else False
+        self.local_model_path = local_model_path or ""
+        self.local_embedding_model = local_embedding_model or "BAAI/bge-small-zh-v1.5"
+        self.embedding_dim = embedding_dim or (512 if self.use_local_llm else 1536)
         # 日志模式: 优先参数，其次环境变量，默认 plain
         self.log_mode = (log_mode or os.getenv("MEM_LOG_MODE") or "plain").lower()
         if self.log_mode not in {"plain", "json"}:
@@ -169,11 +169,16 @@ class MemorySystem:
                         self._log_event("loading_embedding_model", model=model_name, level="info")
                         self._embedding_model_instance = SentenceTransformer(model_name)
                     else:
-                        # 尝试从SentenceTransformer下载
+                        # 从HuggingFace下载到固定目录
+                        embedding_cache_dir = "./models/embeddings"
                         self._log_event("loading_embedding_model", model=model_name, level="info")
                         print(f"正在加载嵌入模型: {model_name}")
-                        self._embedding_model_instance = SentenceTransformer(model_name)
-                        self._embedding_model_instance = SentenceTransformer(model_name)
+                        print(f"📁 保存到: {embedding_cache_dir}")
+                        os.makedirs(embedding_cache_dir, exist_ok=True)
+                        self._embedding_model_instance = SentenceTransformer(
+                            model_name, 
+                            cache_folder=embedding_cache_dir
+                        )
                 
                 self._log_event("embedding_start", level="debug", op=operation)
                 embedding = self._embedding_model_instance.encode(text, normalize_embeddings=True)
