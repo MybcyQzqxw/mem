@@ -19,12 +19,13 @@ load_dotenv()
 from tinymem0 import MemorySystem
 
 
-def download_models(model_shortcut='qwen2.5-7b', model_format='gguf'):
+def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantization='Q4_K_M'):
     """自动下载模型
     
     Args:
         model_shortcut: 模型快捷名称 (qwen2.5-7b, mistral-7b等)
         model_format: 模型格式 (gguf或safetensors)
+        quantization: GGUF量化精度 (Q4_K_M, Q5_K_M等，仅gguf格式需要)
     """
     print("=" * 70)
     print("📦 检查并下载模型")
@@ -71,12 +72,26 @@ def download_models(model_shortcut='qwen2.5-7b', model_format='gguf'):
         downloaded_path = download_model_with_shortcut(
             model_shortcut=model_shortcut,
             model_format=model_format,
-            quantization='Q4_K_M',
+            quantization=quantization,
             verbose=True
         )
         
         print(f"\n   ✅ 模型下载完成！")
         print(f"   📂 位置: {downloaded_path}")
+        
+        # 更新 .env 文件中的模型路径
+        env_file = Path(__file__).parent.parent / '.env'
+        if env_file.exists():
+            with open(env_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            with open(env_file, 'w', encoding='utf-8') as f:
+                for line in lines:
+                    if line.startswith('LOCAL_MODEL_PATH='):
+                        f.write(f'LOCAL_MODEL_PATH={downloaded_path}\n')
+                        print(f"   🔧 已更新 .env: LOCAL_MODEL_PATH={downloaded_path}")
+                    else:
+                        f.write(line)
         
     except Exception as e:
         print(f"\n   ❌ 下载失败: {e}")
@@ -86,16 +101,34 @@ def download_models(model_shortcut='qwen2.5-7b', model_format='gguf'):
     print("\n" + "=" * 70)
 
 
-def main():
-    """主函数 - 演示记忆系统的使用"""
-    import os 
-    use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
+def main(use_local_llm=None, local_model_path=None, local_embedding_model=None, embedding_dim=None):
+    """主函数 - 演示记忆系统的使用
+    
+    Args:
+        use_local_llm: 是否使用本地LLM
+        local_model_path: 本地模型路径
+        local_embedding_model: 本地嵌入模型
+        embedding_dim: 嵌入向量维度
+    """
+    import os
+    # 参数优先级：函数参数 > 环境变量
+    use_local = use_local_llm if use_local_llm is not None else (os.getenv("USE_LOCAL_LLM", "false").lower() == "true")
+    
     if not use_local and not os.getenv("DASHSCOPE_API_KEY"):
         raise RuntimeError("未找到 DASHSCOPE_API_KEY，请在 .env 中配置。")
     
     mode = "本地模型" if use_local else "云端API"
-    print(f"初始化记忆系统 ({mode})...")
-    memory_system = MemorySystem()
+    if use_local and local_model_path:
+        print(f"初始化记忆系统 ({mode}: {local_model_path})...")
+    else:
+        print(f"初始化记忆系统 ({mode})...")
+    
+    memory_system = MemorySystem(
+        use_local_llm=use_local,
+        local_model_path=local_model_path,
+        local_embedding_model=local_embedding_model,
+        embedding_dim=embedding_dim
+    )
     
     # 示例1: 写入记忆
     print("\n=== 示例1: 写入记忆 ===")
@@ -379,6 +412,39 @@ if __name__ == "__main__":
     )
     
     parser.add_argument(
+        '--quant', '-q',
+        type=str,
+        default='Q4_K_M',
+        choices=['Q3_K_M', 'Q4_K_M', 'Q5_K_M', 'Q8_0'],
+        help='GGUF量化精度 (默认: Q4_K_M, 仅format=gguf时有效)'
+    )
+    
+    parser.add_argument(
+        '--use-local',
+        action='store_true',
+        default=None,
+        help='使用本地LLM（优先级高于.env）'
+    )
+    
+    parser.add_argument(
+        '--use-cloud',
+        action='store_true',
+        help='使用云端API（覆盖--use-local和.env）'
+    )
+    
+    parser.add_argument(
+        '--embedding-model',
+        type=str,
+        help='嵌入模型名称 (默认: BAAI/bge-small-zh-v1.5)'
+    )
+    
+    parser.add_argument(
+        '--embedding-dim',
+        type=int,
+        help='嵌入向量维度 (默认: 本地512/云端1536)'
+    )
+    
+    parser.add_argument(
         '--skip-download', '-s',
         action='store_true',
         help='跳过模型下载，直接运行demo'
@@ -386,12 +452,55 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
+    # 确定是否使用本地LLM：--use-cloud > --use-local > .env
+    if args.use_cloud:
+        use_local = False
+    elif args.use_local:
+        use_local = True
+    else:
+        use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
+    
+    local_model_path = None
+    local_embedding_model = args.embedding_model or os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
+    embedding_dim = args.embedding_dim
+    
     # 下载模型（除非明确跳过）
-    if not args.skip_download:
-        download_models(args.model, args.format)
+    if not args.skip_download and use_local:
+        download_models(args.model, args.format, args.quant)
+        
+        # 构建模型路径
+        if args.format == 'gguf':
+            # GGUF文件直接在models/gguf目录下
+            model_dir = Path('./models/gguf')
+            if model_dir.exists():
+                # 查找匹配量化精度的文件
+                pattern = f'*{args.quant}*.gguf'
+                gguf_files = list(model_dir.glob(pattern))
+                if gguf_files:
+                    local_model_path = str(gguf_files[0])
+        else:
+            # SafeTensors在子目录
+            model_dir = Path('./models/safetensors') / args.model
+            if model_dir.exists():
+                local_model_path = str(model_dir)
+        
         print("\n")
     else:
-        print("⏭️  跳过模型下载\n")
+        if args.skip_download:
+            print("⏭️  跳过模型下载\n")
+        # 即使跳过下载，也尝试构建路径
+        if use_local and args.format == 'gguf':
+            model_dir = Path('./models/gguf')
+            if model_dir.exists():
+                pattern = f'*{args.quant}*.gguf'
+                gguf_files = list(model_dir.glob(pattern))
+                if gguf_files:
+                    local_model_path = str(gguf_files[0])
     
-    # 运行主示例
-    main()
+    # 运行主示例，传递参数
+    main(
+        use_local_llm=use_local,
+        local_model_path=local_model_path,
+        local_embedding_model=local_embedding_model,
+        embedding_dim=embedding_dim
+    )

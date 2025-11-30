@@ -22,21 +22,46 @@ if str(_project_root) not in sys.path:
 from utils.inference import parse_json_response
 
 class MemorySystem:
-    def __init__(self, collection_name: str = "memories", llm_model: str = "qwen-turbo", embedding_model: str = "text-embedding-v1", log_mode: Optional[str] = None, log_level: Optional[str] = None, log_file: Optional[str] = None, qdrant_path: Optional[str] = None):
+    def __init__(
+        self,
+        collection_name: str = "memories",
+        llm_model: str = "qwen-turbo",
+        embedding_model: str = "text-embedding-v1",
+        log_mode: Optional[str] = None,
+        log_level: Optional[str] = None,
+        log_file: Optional[str] = None,
+        qdrant_path: Optional[str] = None,
+        use_local_llm: Optional[bool] = None,
+        local_model_path: Optional[str] = None,
+        local_embedding_model: Optional[str] = None,
+        embedding_dim: Optional[int] = None
+    ):
         """
         初始化记忆系统
         
         Args:
             collection_name: Qdrant集合名称
-            llm_model: LLM 模型名称
-            embedding_model: 向量模型名称
-            log_mode: 日志模式 (plain | json)，可被环境变量 MEM_LOG_MODE 覆盖
-            qdrant_path: Qdrant数据存储路径，默认为"./qdrant_data"
+            llm_model: LLM模型名称（云端API）
+            embedding_model: 向量模型名称（云端API）
+            log_mode: 日志模式 (plain | json)
+            log_level: 日志级别 (debug | info | warn | error)
+            log_file: 日志文件路径
+            qdrant_path: Qdrant数据存储路径
+            use_local_llm: 是否使用本地LLM（优先级：参数 > .env）
+            local_model_path: 本地LLM路径（优先级：参数 > .env）
+            local_embedding_model: 本地嵌入模型（优先级：参数 > .env）
+            embedding_dim: 嵌入向量维度（优先级：参数 > .env）
         """
         self.collection_name = collection_name
         self.qdrant_path = qdrant_path or "./qdrant_data"
         self.llm_model = llm_model
         self.embedding_model = embedding_model
+        
+        # 参数优先级：构造参数 > 环境变量 > 默认值
+        self.use_local_llm = use_local_llm if use_local_llm is not None else (os.getenv("USE_LOCAL_LLM", "false").lower() == "true")
+        self.local_model_path = local_model_path or os.getenv("LOCAL_MODEL_PATH", "")
+        self.local_embedding_model = local_embedding_model or os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
+        self.embedding_dim = embedding_dim or int(os.getenv("EMBEDDING_DIM", "512" if self.use_local_llm else "1536"))
         # 日志模式: 优先参数，其次环境变量，默认 plain
         self.log_mode = (log_mode or os.getenv("MEM_LOG_MODE") or "plain").lower()
         if self.log_mode not in {"plain", "json"}:
@@ -75,14 +100,8 @@ class MemorySystem:
         collection_names = [col.name for col in collections.collections]
         
         if self.collection_name not in collection_names:
-            # 确定向量维度
-            use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
-            if use_local:
-                # 本地嵌入模型，默认使用bge-small-zh-v1.5的512维
-                vector_size = int(os.getenv("EMBEDDING_DIM", "512"))
-            else:
-                # 阿里云text-embedding-v1使用1536维
-                vector_size = 1536
+            # 使用实例的embedding_dim
+            vector_size = self.embedding_dim
             
             # 创建新集合
             self.qdrant_client.create_collection(
