@@ -11,106 +11,70 @@ import sys
 from typing import Optional
 
 
-def download_embedding_model(model_id: str = 'AI-ModelScope/bge-small-zh-v1.5', 
-                             cache_dir: str = './embedding_models',
-                             source: str = 'modelscope') -> str:
+def download_embedding_model(
+    model_id: str = 'BAAI/bge-small-zh-v1.5', 
+    cache_dir: str = './models/embeddings'
+) -> str:
     """
-    下载嵌入模型（通用函数）
-    
-    支持从多个源下载模型：
-    - ModelScope: 中国区友好，适合下载中文模型
-    - HuggingFace: 国际主流模型库
+    下载嵌入模型（使用 sentence-transformers）
     
     Args:
-        model_id: 模型ID（格式依赖于source）
-        cache_dir: 本地缓存目录
-        source: 下载源 ('modelscope' 或 'huggingface')
+        model_id: 模型ID（HuggingFace格式，如 'BAAI/bge-small-zh-v1.5'）
+        cache_dir: 本地缓存目录（固定为 ./models/embeddings）
         
     Returns:
         下载后的模型本地路径
         
     Raises:
-        ImportError: 缺少必要的依赖包
+        ImportError: 缺少 sentence-transformers 依赖
         RuntimeError: 下载失败
         
     Examples:
-        >>> # 从ModelScope下载
-        >>> path = download_embedding_model('AI-ModelScope/bge-small-zh-v1.5')
+        >>> # 下载中文嵌入模型
+        >>> path = download_embedding_model('BAAI/bge-small-zh-v1.5')
         
-        >>> # 从HuggingFace下载
-        >>> path = download_embedding_model(
-        ...     'sentence-transformers/all-MiniLM-L6-v2',
-        ...     source='huggingface'
-        ... )
+        >>> # 下载英文嵌入模型
+        >>> path = download_embedding_model('sentence-transformers/all-MiniLM-L6-v2')
     """
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError:
+        raise ImportError(
+            "需要安装 sentence-transformers\n"
+            "运行: pip install sentence-transformers"
+        )
+    
     # 确保缓存目录存在
     os.makedirs(cache_dir, exist_ok=True)
     
-    # 检查模型是否已存在
-    model_path = os.path.join(cache_dir, model_id)
-    if os.path.exists(model_path):
-        print(f"✅ 模型已存在: {model_path}")
-        return model_path
+    # 检查模型是否是本地路径
+    if os.path.exists(model_id):
+        print(f"✅ 使用本地模型: {model_id}")
+        return model_id
     
-    print(f"📥 开始下载模型: {model_id}")
-    print(f"📁 下载目录: {cache_dir}")
-    print(f"🌐 下载源: {source}")
+    print(f"📥 检查/下载嵌入模型: {model_id}")
+    print(f"📁 保存到: {cache_dir}")
     
     try:
-        if source == 'modelscope':
-            return _download_from_modelscope(model_id, cache_dir)
-        elif source == 'huggingface':
-            return _download_from_huggingface(model_id, cache_dir)
-        else:
-            raise ValueError(f"不支持的下载源: {source}")
+        # SentenceTransformer 会自动下载并缓存模型
+        model = SentenceTransformer(model_id, cache_folder=cache_dir)
+        
+        # 构建模型实际路径
+        model_path = os.path.join(cache_dir, model_id.replace('/', '_'))
+        print(f"✅ 嵌入模型就绪: {model_id}")
+        return model_id  # 返回模型ID，SentenceTransformer 可以直接使用
             
-    except ImportError as e:
-        print(f"❌ 错误: 缺少必要的依赖包")
-        print(f"详细信息: {e}")
-        if source == 'modelscope':
-            print("请运行: pip install modelscope -i https://pypi.tuna.tsinghua.edu.cn/simple")
-        elif source == 'huggingface':
-            print("请运行: pip install huggingface_hub")
-        sys.exit(1)
     except Exception as e:
         print(f"❌ 下载失败: {e}")
-        raise RuntimeError(f"模型下载失败: {e}")
-
-
-def _download_from_modelscope(model_id: str, cache_dir: str) -> str:
-    """从ModelScope下载模型（内部函数）"""
-    from modelscope import snapshot_download
-    
-    downloaded_path = snapshot_download(
-        model_id=model_id,
-        cache_dir=cache_dir,
-        revision='master'
-    )
-    
-    print(f"✅ 模型下载完成: {downloaded_path}")
-    return downloaded_path
-
-
-def _download_from_huggingface(model_id: str, cache_dir: str) -> str:
-    """从HuggingFace下载模型（内部函数）"""
-    from huggingface_hub import snapshot_download
-    
-    downloaded_path = snapshot_download(
-        repo_id=model_id,
-        cache_dir=cache_dir,
-        local_dir=os.path.join(cache_dir, model_id)
-    )
-    
-    print(f"✅ 模型下载完成: {downloaded_path}")
-    return downloaded_path
-
+        raise RuntimeError(f"嵌入模型下载失败: {e}")
 
 def download_llm_model(
     model_id: str,
-    cache_dir: str = './models',
-    model_format: str = 'auto',
+    cache_dir: str,
+    model_format: str,
     quantization: Optional[str] = None,
-    source: str = 'huggingface'
+    source: str = 'huggingface',
+    hf_token: Optional[str] = None
 ) -> str:
     """
     从 HuggingFace 下载 LLM 模型（支持 GGUF 和 SafeTensors）
@@ -119,14 +83,17 @@ def download_llm_model(
         model_id: 模型ID
             - GGUF: 如 "TheBloke/Qwen2-7B-Instruct-GGUF"
             - SafeTensors: 如 "Qwen/Qwen2-7B-Instruct"
-        cache_dir: 缓存目录基础路径
-        model_format: 模型格式 ('auto', 'gguf', 'safetensors')
+        cache_dir: 缓存目录基础路径（必需，由上层传递）
+        model_format: 模型格式（必需，由上层传递）
             - 'auto': 自动检测（通过model_id判断）
+            - 'gguf': GGUF格式
+            - 'safetensors': SafeTensors格式
         quantization: GGUF量化版本（仅GGUF格式需要）
             - 'Q4_K_M': 4-bit, 推荐
             - 'Q5_K_M': 5-bit, 更高精度
             - 'Q8_0': 8-bit, 接近原始
         source: 下载源 ('huggingface' 或 'modelscope')
+        hf_token: HuggingFace访问令牌（由上层传递）
         
     Returns:
         下载后的模型路径
@@ -135,12 +102,15 @@ def download_llm_model(
         >>> # 下载GGUF模型
         >>> path = download_llm_model(
         ...     "TheBloke/Qwen2-7B-Instruct-GGUF",
+        ...     cache_dir="./models",
+        ...     model_format="gguf",
         ...     quantization="Q4_K_M"
         ... )
         
         >>> # 下载SafeTensors模型
         >>> path = download_llm_model(
         ...     "Qwen/Qwen2-7B-Instruct",
+        ...     cache_dir="./models",
         ...     model_format="safetensors"
         ... )
     """
@@ -156,7 +126,7 @@ def download_llm_model(
     if model_format == 'gguf':
         return _download_gguf_model(model_id, cache_dir, quantization, source)
     elif model_format == 'safetensors':
-        return _download_safetensors_model(model_id, cache_dir, source)
+        return _download_safetensors_model(model_id, cache_dir, source, hf_token)
     else:
         raise ValueError(f"不支持的模型格式: {model_format}")
 
@@ -264,9 +234,14 @@ def _download_gguf_model(
 def _download_safetensors_model(
     model_id: str,
     cache_dir: str,
-    source: str
+    source: str,
+    hf_token: Optional[str] = None
 ) -> str:
-    """下载SafeTensors格式模型（内部函数）"""
+    """下载SafeTensors格式模型（内部函数）
+    
+    Args:
+        hf_token: HuggingFace访问令牌（由上层传递）
+    """
     try:
         from huggingface_hub import snapshot_download
     except ImportError:
@@ -291,9 +266,6 @@ def _download_safetensors_model(
     print("⚠️  SafeTensors模型体积较大(10GB+)，请耐心等待...")
     
     try:
-        # 获取 HF Token（用于受限模型）
-        hf_token = os.getenv('HF_TOKEN', None)
-        
         # 下载整个模型仓库
         downloaded_path = snapshot_download(
             repo_id=model_id,

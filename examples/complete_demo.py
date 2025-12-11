@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 """
-记忆系统使用示例 - 自动下载模型并运行
+记忆系统使用示例 - 从.env读取配置并运行
+所有配置通过.env文件管理，无需命令行参数
 """
 import sys
 import os
-import argparse
 from pathlib import Path
 
 # 添加项目根目录到路径
@@ -19,30 +19,56 @@ load_dotenv()
 from tinymem0 import MemorySystem
 
 
-def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantization='Q4_K_M', use_local_llm=True, embedding_model='BAAI/bge-small-zh-v1.5'):
-    """自动下载模型
+def str_to_bool(value: str) -> bool:
+    """将字符串转换为布尔值"""
+    if not value:
+        return False
+    return value.lower() in ('true', '1', 'yes', 'on')
+
+
+def download_models():
+    """从.env读取配置并下载模型"""
+    # 读取配置
+    use_local_llm = str_to_bool(os.getenv('USE_LOCAL_LLM', 'false'))
+    skip_download = str_to_bool(os.getenv('SKIP_DOWNLOAD', 'false'))
+    model_shortcut = os.getenv('MODEL_SHORTCUT', 'mistral-7b')
+    model_format = os.getenv('MODEL_FORMAT', 'gguf')
+    quantization = os.getenv('MODEL_QUANTIZATION', 'Q4_K_M')
+    embedding_model = os.getenv('LOCAL_EMBEDDING_MODEL', 'BAAI/bge-small-zh-v1.5')
+    hf_token = os.getenv('HF_TOKEN')  # 从.env读取HuggingFace令牌
     
-    Args:
-        model_shortcut: 模型快捷名称 (qwen2.5-7b, mistral-7b等)
-        model_format: 模型格式 (gguf或safetensors)
-        quantization: GGUF量化精度 (Q4_K_M, Q5_K_M等，仅gguf格式需要)
-        use_local_llm: 是否使用本地LLM
-        embedding_model: 嵌入模型名称
-    """
     print("=" * 70)
     print("📦 检查并下载模型")
     print("=" * 70)
+    print(f"\n配置信息（来自 .env）:")
+    print(f"  USE_LOCAL_LLM: {use_local_llm}")
+    print(f"  MODEL_SHORTCUT: {model_shortcut}")
+    print(f"  MODEL_FORMAT: {model_format}")
+    print(f"  MODEL_QUANTIZATION: {quantization}")
+    print(f"  SKIP_DOWNLOAD: {skip_download}")
     
-    # 1. 嵌入模型 (由MemorySystem自动管理，无需手动下载)
+    # 1. 下载嵌入模型（调用底层工具）
     print("\n1️⃣ 嵌入模型...")
     print(f"   模型: {embedding_model}")
-    print("   ℹ️  由 MemorySystem 自动管理，首次使用时自动下载")
+    
+    sys.path.insert(0, str(Path(__file__).parent.parent / 'utils'))
+    from model_manager.downloader import download_embedding_model
+    
+    try:
+        download_embedding_model(model_id=embedding_model)
+    except Exception as e:
+        print(f"   ⚠️  嵌入模型预下载失败（首次使用时会自动下载）: {e}")
     
     # 2. 检查LLM模型
     print("\n2️⃣ LLM模型...")
     
     if not use_local_llm:
         print("   ⏭️  云端API模式，无需下载")
+        print("\n" + "=" * 70)
+        return None
+    
+    if skip_download:
+        print("   ⏭️  已设置 SKIP_DOWNLOAD=true，跳过下载")
         print("\n" + "=" * 70)
         return None
     
@@ -55,7 +81,8 @@ def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantizati
             model_shortcut=model_shortcut,
             model_format=model_format,
             quantization=quantization,
-            verbose=True
+            verbose=True,
+            hf_token=hf_token  # 传递HF令牌到下层
         )
         
         print(f"\n   ✅ 模型就绪")
@@ -70,30 +97,35 @@ def download_models(model_shortcut='qwen2.5-7b', model_format='gguf', quantizati
         return None
 
 
-def main(use_local_llm=None, local_model_path=None, local_embedding_model=None, embedding_dim=None):
-    """主函数 - 演示记忆系统的使用
+def main():
+    """主函数 - 演示记忆系统的使用（从.env读取所有配置）"""
+    # 从.env读取配置
+    use_local_llm = str_to_bool(os.getenv('USE_LOCAL_LLM', 'false'))
+    local_model_path = os.getenv('LOCAL_MODEL_PATH', '')
+    local_embedding_model = os.getenv('LOCAL_EMBEDDING_MODEL', 'BAAI/bge-small-zh-v1.5')
+    embedding_dim_str = os.getenv('EMBEDDING_DIM', '')
     
-    Args:
-        use_local_llm: 是否使用本地LLM
-        local_model_path: 本地模型路径
-        local_embedding_model: 本地嵌入模型
-        embedding_dim: 嵌入向量维度
-    """
-    import os
-    # 使用传入的参数，不再读取.env
-    use_local = use_local_llm if use_local_llm is not None else False
+    # 自动设置embedding_dim
+    if embedding_dim_str:
+        embedding_dim = int(embedding_dim_str)
+    else:
+        embedding_dim = 512 if use_local_llm else 1536
     
-    if not use_local and not os.getenv("DASHSCOPE_API_KEY"):
-        raise RuntimeError("未找到 DASHSCOPE_API_KEY，请在 .env 中配置。")
+    # 验证配置
+    if not use_local_llm and not os.getenv("DASHSCOPE_API_KEY"):
+        raise RuntimeError(
+            "使用云端API需要配置 DASHSCOPE_API_KEY\n"
+            "请在 .env 文件中设置: DASHSCOPE_API_KEY=your_api_key_here"
+        )
     
-    mode = "本地模型" if use_local else "云端API"
-    if use_local and local_model_path:
+    mode = "本地模型" if use_local_llm else "云端API"
+    if use_local_llm and local_model_path:
         print(f"初始化记忆系统 ({mode}: {local_model_path})...")
     else:
         print(f"初始化记忆系统 ({mode})...")
     
     memory_system = MemorySystem(
-        use_local_llm=use_local,
+        use_local_llm=use_local_llm,
         local_model_path=local_model_path,
         local_embedding_model=local_embedding_model,
         embedding_dim=embedding_dim
@@ -362,117 +394,34 @@ def example_advanced_search():
 
 
 if __name__ == "__main__":
-    # 解析命令行参数
-    parser = argparse.ArgumentParser(
-        description='TinyMem0 记忆系统完整示例 - 自动下载模型并运行',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
-示例用法:
-  # 使用默认模型 (Qwen2.5-7B GGUF格式)
-  python examples/complete_demo.py
-  
-  # 指定其他模型
-  python examples/complete_demo.py --model mistral-7b --format gguf
-  python examples/complete_demo.py --model qwen2.5-3b --format safetensors
-  
-  # 跳过模型下载（使用云端API或已有模型）
-  python examples/complete_demo.py --skip-download
-
-支持的模型:
-  qwen2.5-7b, qwen2.5-3b, qwen2.5-1.5b
-  mistral-7b, llama3-8b, yi-6b
-
-支持的格式:
-  gguf       - CPU推理，4-8GB (推荐)
-  safetensors - GPU推理，14-26GB
-        ''')
+    print("=" * 70)
+    print("TinyMem0 记忆系统完整示例")
+    print("配置来源: .env 文件")
+    print("=" * 70)
     
-    parser.add_argument(
-        '--model', '-m',
-        type=str,
-        default='mistral-7b',
-        choices=['qwen2.5-7b', 'qwen2.5-3b', 'qwen2.5-1.5b',
-                'mistral-7b', 'llama3-8b', 'yi-6b'],
-        help='选择模型 (默认: mistral-7b, 使用TheBloke/Mistral-7B-Instruct-v0.2-GGUF)'
-    )
+    # 下载模型（根据.env配置）
+    downloaded_path = download_models()
     
-    parser.add_argument(
-        '--format', '-f',
-        type=str,
-        default='gguf',
-        choices=['gguf', 'safetensors'],
-        help='模型格式 (默认: gguf)'
-    )
+    # 如果下载了模型，更新.env中的LOCAL_MODEL_PATH
+    if downloaded_path:
+        env_file = Path(__file__).parent.parent / '.env'
+        if env_file.exists():
+            lines = []
+            updated = False
+            with open(env_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('LOCAL_MODEL_PATH='):
+                        lines.append(f'LOCAL_MODEL_PATH={downloaded_path}\n')
+                        updated = True
+                    else:
+                        lines.append(line)
+            
+            if updated:
+                with open(env_file, 'w', encoding='utf-8') as f:
+                    f.writelines(lines)
+                print(f"\n✅ 已更新 .env: LOCAL_MODEL_PATH={downloaded_path}\n")
+                # 重新加载.env
+                load_dotenv(override=True)
     
-    parser.add_argument(
-        '--quant', '-q',
-        type=str,
-        default='Q4_K_M',
-        choices=['Q3_K_M', 'Q4_K_M', 'Q5_K_M', 'Q8_0'],
-        help='GGUF量化精度 (默认: Q4_K_M, 仅format=gguf时有效)'
-    )
-    
-    parser.add_argument(
-        '--use-local',
-        action='store_true',
-        help='使用本地LLM（优先级高于.env）'
-    )
-    
-    parser.add_argument(
-        '--use-cloud',
-        action='store_true',
-        help='使用云端API（覆盖--use-local和.env）'
-    )
-    
-    parser.add_argument(
-        '--embedding-model',
-        type=str,
-        help='嵌入模型名称 (默认: BAAI/bge-small-zh-v1.5)'
-    )
-    
-    parser.add_argument(
-        '--embedding-dim',
-        type=int,
-        help='嵌入向量维度 (默认: 本地512/云端1536)'
-    )
-    
-    parser.add_argument(
-        '--skip-download', '-s',
-        action='store_true',
-        help='跳过模型下载，直接运行demo'
-    )
-    
-    args = parser.parse_args()
-    
-    # 确定是否使用本地LLM：--use-cloud > --use-local > 默认False
-    if args.use_cloud:
-        use_local = False
-    elif args.use_local:
-        use_local = True
-    else:
-        use_local = False  # 默认使用云端API
-    
-    local_model_path = None
-    local_embedding_model = args.embedding_model or "BAAI/bge-small-zh-v1.5"
-    embedding_dim = args.embedding_dim
-    
-    # 下载模型(除非明确跳过)
-    if not args.skip_download and use_local:
-        local_model_path = download_models(
-            model_shortcut=args.model,
-            model_format=args.format,
-            quantization=args.quant,
-            use_local_llm=use_local,
-            embedding_model=local_embedding_model
-        )
-    else:
-        if args.skip_download:
-            print("⏭️  跳过模型下载\n")
-    
-    # 运行主示例，传递参数
-    main(
-        use_local_llm=use_local,
-        local_model_path=local_model_path,
-        local_embedding_model=local_embedding_model,
-        embedding_dim=embedding_dim
-    )
+    # 运行主示例
+    main()

@@ -39,10 +39,10 @@ class LocalLLM:
             device: 设备 ('auto', 'cuda', 'cpu') (仅用于transformers)
             verbose: 是否输出详细日志
         """
-        self.model_path = model_path or os.getenv("LOCAL_MODEL_PATH")
+        if not model_path:
+            raise ValueError("model_path参数是必需的，请从上层传递")
         
-        if not self.model_path:
-            raise ValueError("请设置model_path参数或LOCAL_MODEL_PATH环境变量")
+        self.model_path = model_path
         
         # 标准化路径
         self.model_path = self._resolve_model_path(self.model_path)

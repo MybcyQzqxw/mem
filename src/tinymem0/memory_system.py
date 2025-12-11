@@ -169,15 +169,17 @@ class MemorySystem:
                         self._log_event("loading_embedding_model", model=model_name, level="info")
                         self._embedding_model_instance = SentenceTransformer(model_name)
                     else:
-                        # 从HuggingFace下载到固定目录
-                        embedding_cache_dir = "./models/embeddings"
+                        # 调用底层下载工具
+                        from utils.model_manager.downloader import download_embedding_model
                         self._log_event("loading_embedding_model", model=model_name, level="info")
-                        print(f"正在加载嵌入模型: {model_name}")
-                        print(f"📁 保存到: {embedding_cache_dir}")
-                        os.makedirs(embedding_cache_dir, exist_ok=True)
+                        
+                        # 下载模型（会自动使用固定的 ./models/embeddings 目录）
+                        download_embedding_model(model_id=model_name)
+                        
+                        # 加载模型（使用固定的缓存目录）
                         self._embedding_model_instance = SentenceTransformer(
                             model_name, 
-                            cache_folder=embedding_cache_dir
+                            cache_folder="./models/embeddings"
                         )
                 
                 self._log_event("embedding_start", level="debug", op=operation)

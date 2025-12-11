@@ -36,57 +36,34 @@ def extract_llm_response_content(response) -> Optional[str]:
 
 def call_llm_with_prompt(model: str, system_prompt: str, user_content: str) -> Optional[str]:
     """
-    调用LLM并处理响应
-    支持阿里云API和本地GGUF模型
+    调用阿里云LLM API并处理响应
+    注意：此函数仅处理云端API调用，不处理本地模型
+    本地模型的调用应在上层使用 utils.inference.call_local_llm
     
     Args:
-        model: 模型名称
+        model: 阿里云模型名称
         system_prompt: 系统提示词
         user_content: 用户内容
         
     Returns:
         处理后的响应内容
     """
-    # 检查是否使用本地模型
-    use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
-    
-    if use_local:
-        try:
-            from utils.inference import get_local_llm
-            llm = get_local_llm()
-            
-            # 检查是否需要JSON输出，如果是则降低温度以获得更确定性的输出
-            temp = 0.3 if ('json' in system_prompt.lower() or 'JSON' in system_prompt) else 0.7
-            
-            return llm.chat(
-                messages=[
-                    {'role': 'system', 'content': system_prompt},
-                    {'role': 'user', 'content': user_content}
-                ],
-                max_tokens=1024,
-                temperature=temp
-            )
-        except Exception as e:
-            print(f"本地LLM调用异常: {e}")
-            return None
-    else:
-        # 使用阿里云API
-        try:
-            # 构建符合类型的消息列表
-            messages: List[Dict[str, Any]] = [
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user', 'content': user_content}
-            ]
-            response = Generation.call(
-                model=model,
-                messages=messages,  # type: ignore[arg-type]
-                result_format='message'
-            )
-            
-            return extract_llm_response_content(response)
-        except Exception as e:
-            print(f"LLM调用异常: {e}")
-            return None
+    try:
+        # 构建符合类型的消息列表
+        messages: List[Dict[str, Any]] = [
+            {'role': 'system', 'content': system_prompt},
+            {'role': 'user', 'content': user_content}
+        ]
+        response = Generation.call(
+            model=model,
+            messages=messages,  # type: ignore[arg-type]
+            result_format='message'
+        )
+        
+        return extract_llm_response_content(response)
+    except Exception as e:
+        print(f"阿里云LLM调用异常: {e}")
+        return None
 
 
 def handle_llm_error(response, operation_name: str = "操作"):

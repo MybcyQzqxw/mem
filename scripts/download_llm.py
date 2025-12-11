@@ -51,7 +51,7 @@ def print_format_choice():
     print("[2] SafeTensors (GPU, 14-26GB)\n")
 
 
-def download_model_with_shortcut(model_shortcut='mistral-7b', model_format='gguf', quantization='Q4_K_M', verbose=True):
+def download_model_with_shortcut(model_shortcut='mistral-7b', model_format='gguf', quantization='Q4_K_M', verbose=True, hf_token=None):
     """使用简称下载模型
     
     Args:
@@ -59,6 +59,7 @@ def download_model_with_shortcut(model_shortcut='mistral-7b', model_format='gguf
         model_format: gguf 或 safetensors
         quantization: GGUF量化级别
         verbose: 是否打印信息
+        hf_token: HuggingFace访问令牌（由上层传递）
     
     Returns:
         下载的模型路径
@@ -83,7 +84,8 @@ def download_model_with_shortcut(model_shortcut='mistral-7b', model_format='gguf
         model_id=model_id,
         cache_dir='./models',
         model_format=model_format,
-        quantization=quantization if model_format == 'gguf' else None
+        quantization=quantization if model_format == 'gguf' else None,
+        hf_token=hf_token
     )
 
 
