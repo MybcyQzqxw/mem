@@ -7,7 +7,9 @@
 """
 import sys
 import os
+import json
 from pathlib import Path
+from datetime import datetime
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent
@@ -24,6 +26,75 @@ def str_to_bool(value: str) -> bool:
     if not value:
         return False
     return value.lower() in ('true', '1', 'yes', 'on')
+
+
+def check_model_in_registry(shortcut, format_type, quantization):
+    """检查模型注册表，返回本地路径（如果存在）"""
+    registry_file = Path(__file__).parent.parent / 'model_registry.json'
+    
+    if not registry_file.exists():
+        return None
+    
+    try:
+        with open(registry_file, 'r', encoding='utf-8') as f:
+            registry = json.load(f)
+        
+        for model in registry.get('models', []):
+            if (model['shortcut'] == shortcut and 
+                model['format'] == format_type and 
+                model['quantization'] == quantization):
+                # 找到匹配的配置，检查文件是否存在
+                local_path = model['local_path']
+                if Path(local_path).exists():
+                    return local_path
+                else:
+                    # 配置存在但文件丢失
+                    return None
+        return None
+    except Exception as e:
+        print(f"   ⚠️  读取模型注册表失败: {e}")
+        return None
+
+
+def add_model_to_registry(shortcut, format_type, quantization, local_path, model_id):
+    """将模型添加到注册表"""
+    registry_file = Path(__file__).parent.parent / 'model_registry.json'
+    
+    # 读取现有注册表
+    if registry_file.exists():
+        try:
+            with open(registry_file, 'r', encoding='utf-8') as f:
+                registry = json.load(f)
+        except:
+            registry = {"_description": "本地模型注册表", "models": []}
+    else:
+        registry = {"_description": "本地模型注册表", "models": []}
+    
+    # 检查是否已存在
+    for model in registry['models']:
+        if (model['shortcut'] == shortcut and 
+            model['format'] == format_type and 
+            model['quantization'] == quantization):
+            # 更新现有记录
+            model['local_path'] = local_path
+            model['model_id'] = model_id
+            break
+    else:
+        # 添加新记录
+        registry['models'].append({
+            "shortcut": shortcut,
+            "format": format_type,
+            "quantization": quantization,
+            "local_path": local_path,
+            "model_id": model_id
+        })
+    
+    # 保存注册表
+    try:
+        with open(registry_file, 'w', encoding='utf-8') as f:
+            json.dump(registry, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"   ⚠️  保存模型注册表失败: {e}")
 
 
 def download_models():
@@ -72,11 +143,31 @@ def download_models():
         print("\n" + "=" * 70)
         return None
     
+    # 先检查模型注册表
+    print(f"   🔍 检查模型注册表...")
+    registry_path = check_model_in_registry(model_shortcut, model_format, quantization)
+    
+    if registry_path:
+        print(f"   ✅ 在注册表中找到模型")
+        print(f"   📂 位置: {registry_path}")
+        print(f"   ⏭️  跳过下载")
+        print("\n" + "=" * 70)
+        return registry_path
+    else:
+        print(f"   ℹ️  注册表中无此配置，需要下载")
+    
     # 调用底层下载工具
     sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
-    from download_llm import download_model_with_shortcut
+    from download_llm import download_model_with_shortcut, MODEL_MAP
     
     try:
+        # 获取模型ID（用于注册表）
+        if model_shortcut in MODEL_MAP:
+            gguf_id, safetensors_id = MODEL_MAP[model_shortcut]
+            model_id = gguf_id if model_format == 'gguf' else safetensors_id
+        else:
+            model_id = model_shortcut
+        
         downloaded_path = download_model_with_shortcut(
             model_shortcut=model_shortcut,
             model_format=model_format,
@@ -87,6 +178,11 @@ def download_models():
         
         print(f"\n   ✅ 模型就绪")
         print(f"   📂 位置: {downloaded_path}")
+        
+        # 添加到注册表
+        print(f"   💾 更新模型注册表...")
+        add_model_to_registry(model_shortcut, model_format, quantization, downloaded_path, model_id)
+        
         print("\n" + "=" * 70)
         return downloaded_path
         
@@ -101,9 +197,36 @@ def main():
     """主函数 - 演示记忆系统的使用（从.env读取所有配置）"""
     # 从.env读取配置
     use_local_llm = str_to_bool(os.getenv('USE_LOCAL_LLM', 'false'))
-    local_model_path = os.getenv('LOCAL_MODEL_PATH', '')
+    model_shortcut = os.getenv('MODEL_SHORTCUT', 'mistral-7b')
+    model_format = os.getenv('MODEL_FORMAT', 'gguf')
+    quantization = os.getenv('MODEL_QUANTIZATION', 'Q4_K_M')
     local_embedding_model = os.getenv('LOCAL_EMBEDDING_MODEL', 'BAAI/bge-small-zh-v1.5')
     embedding_dim_str = os.getenv('EMBEDDING_DIM', '')
+    
+    # 自动推导本地模型路径（与配置保持一致）
+    if use_local_llm:
+        # 根据配置自动生成模型路径
+        sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+        from download_llm import MODEL_MAP
+        
+        if model_shortcut in MODEL_MAP:
+            gguf_id, safetensors_id = MODEL_MAP[model_shortcut]
+            model_id = gguf_id if model_format == 'gguf' else safetensors_id
+            
+            if model_format == 'gguf':
+                # GGUF格式：models/gguf/文件名.gguf
+                model_name = model_id.split('/')[-1]  # 提取仓库名
+                # 从仓库名提取基础模型名（移除-GGUF后缀）
+                base_name = model_name.replace('-GGUF', '').lower()
+                filename = f"{base_name}.{quantization}.gguf"
+                local_model_path = f"models/gguf/{filename}"
+            else:
+                # SafeTensors格式：models/safetensors/model_id/
+                local_model_path = f"models/safetensors/{model_id}"
+        else:
+            local_model_path = ""
+    else:
+        local_model_path = ""
     
     # 自动设置embedding_dim
     if embedding_dim_str:
