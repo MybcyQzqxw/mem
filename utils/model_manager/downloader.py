@@ -8,7 +8,9 @@
 
 import os
 import sys
+import json
 from typing import Optional
+from pathlib import Path
 
 
 def download_embedding_model(
@@ -67,6 +69,7 @@ def download_embedding_model(
     except Exception as e:
         print(f"❌ 下载失败: {e}")
         raise RuntimeError(f"嵌入模型下载失败: {e}")
+
 
 def download_llm_model(
     model_id: str,
@@ -297,7 +300,6 @@ def _download_safetensors_model(
         raise
 
 
-
 def check_model_exists(model_id: str, cache_dir: str) -> bool:
     """
     检查模型是否已下载
@@ -311,3 +313,80 @@ def check_model_exists(model_id: str, cache_dir: str) -> bool:
     """
     model_path = os.path.join(cache_dir, model_id)
     return os.path.exists(model_path)
+
+
+def _load_model_shortcuts() -> dict:
+    """
+    加载模型简称映射表
+    
+    Returns:
+        模型简称字典
+    """
+    # 配置文件在项目根目录
+    config_path = Path(__file__).parent.parent.parent / 'model_registry.json'
+    
+    if not config_path.exists():
+        raise FileNotFoundError(
+            f"未找到模型简称配置文件: {config_path}\n"
+            "请确保 model_registry.json 存在于项目根目录"
+        )
+    
+    with open(config_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    return data.get('shortcuts', {})
+
+
+def download_llm_model_with_shortcut(
+    model_shortcut: str = 'mistral-7b',
+    model_format: str = 'gguf',
+    quantization: str = 'Q4_K_M',
+    verbose: bool = True,
+    hf_token: Optional[str] = None
+) -> str:
+    """
+    使用模型简称下载模型
+    
+    Args:
+        model_shortcut: 模型简称（见 model_registry.json）
+        model_format: gguf 或 safetensors
+        quantization: GGUF量化级别
+        verbose: 是否打印详细信息
+        hf_token: HuggingFace访问令牌
+    
+    Returns:
+        下载的模型路径
+    """
+    # 加载简称映射
+    shortcuts = _load_model_shortcuts()
+    
+    if model_shortcut not in shortcuts:
+        raise ValueError(
+            f"不支持的模型: {model_shortcut}\n"
+            f"可用模型: {list(shortcuts.keys())}"
+        )
+    
+    # 获取模型ID
+    model_info = shortcuts[model_shortcut]
+    model_id = model_info.get(model_format)
+    
+    if not model_id:
+        raise ValueError(
+            f"模型 {model_shortcut} 不支持 {model_format} 格式\n"
+            f"可用格式: {list(model_info.keys())}"
+        )
+    
+    if verbose:
+        print(f"🔍 模型: {model_shortcut}")
+        print(f"🔗 仓库: {model_id}")
+        print(f"📁 格式: {model_format}")
+        if model_format == 'gguf':
+            print(f"🔧 量化: {quantization}")
+    
+    return download_llm_model(
+        model_id=model_id,
+        cache_dir='./models',
+        model_format=model_format,
+        quantization=quantization if model_format == 'gguf' else None,
+        hf_token=hf_token
+    )

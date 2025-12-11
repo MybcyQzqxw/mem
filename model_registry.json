@@ -1,26 +1,20 @@
 {
-  "_description": "本地模型注册表 - 记录所有已下载的模型配置和路径",
-  "models": [
-    {
-      "shortcut": "mistral-7b",
-      "format": "gguf",
-      "quantization": "Q4_K_M",
-      "local_path": "models/gguf/mistral-7b-instruct-v0.2.Q4_K_M.gguf",
-      "model_id": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF"
+  "shortcuts": {
+    "qwen2.5-7b": {
+      "gguf": "bartowski/Qwen2.5-7B-Instruct-GGUF",
+      "safetensors": "Qwen/Qwen2.5-7B-Instruct"
     },
-    {
-      "shortcut": "mistral-7b",
-      "format": "gguf",
-      "quantization": "Q2_K",
-      "local_path": "models/gguf/mistral-7b-instruct-v0.2.Q2_K.gguf",
-      "model_id": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF"
+    "mistral-7b": {
+      "gguf": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
+      "safetensors": "mistralai/Mistral-7B-Instruct-v0.2"
+    },
+    "llama3-8b": {
+      "gguf": "TheBloke/Meta-Llama-3-8B-Instruct-GGUF",
+      "safetensors": "meta-llama/Meta-Llama-3-8B-Instruct"
+    },
+    "yi-6b": {
+      "gguf": "TheBloke/Yi-6B-Chat-GGUF",
+      "safetensors": "01-ai/Yi-6B-Chat"
     }
-  ],
-  "embedding_models": [
-    {
-      "model_id": "BAAI/bge-small-zh-v1.5",
-      "embedding_dim": 512,
-      "local_path": "models/embeddings/models--BAAI--bge-small-zh-v1.5"
-    }
-  ]
+  }
 }

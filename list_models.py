@@ -13,7 +13,7 @@ import sys
 
 def list_models():
     """列出注册表中的所有模型，检查文件存在性"""
-    registry_file = Path(__file__).parent / 'model_registry.json'
+    registry_file = Path(__file__).parent / 'model_downloaded.json'
     
     if not registry_file.exists():
         print("❌ 模型注册表不存在")
@@ -105,7 +105,7 @@ def list_models():
 
 def verify_models():
     """验证注册表中的模型文件是否存在"""
-    registry_file = Path(__file__).parent / 'model_registry.json'
+    registry_file = Path(__file__).parent / 'model_downloaded.json'
     
     if not registry_file.exists():
         print("❌ 模型注册表不存在")
@@ -137,7 +137,7 @@ def verify_models():
 
 def find_model(shortcut=None, format_type=None, quantization=None):
     """根据配置查找模型"""
-    registry_file = Path(__file__).parent / 'model_registry.json'
+    registry_file = Path(__file__).parent / 'model_downloaded.json'
     
     if not registry_file.exists():
         print("❌ 模型注册表不存在")
