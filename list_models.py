@@ -23,52 +23,84 @@ def list_models():
         registry = json.load(f)
     
     models = registry.get('models', [])
+    embedding_models = registry.get('embedding_models', [])
     
-    if not models:
+    if not models and not embedding_models:
         print("📋 模型注册表为空")
         return
-    
-    # 分类模型
-    available_models = []
-    missing_models = []
-    
-    for model in models:
-        if Path(model['local_path']).exists():
-            available_models.append(model)
-        else:
-            missing_models.append(model)
     
     print("=" * 80)
     print("📋 模型注册表检查报告")
     print("=" * 80)
     print()
     
-    # 报告可用模型
-    if available_models:
-        print(f"✅ 可用模型: {len(available_models)} 个")
+    # ========== LLM模型 ==========
+    if models:
+        print("🤖 LLM模型")
         print("-" * 80)
-        for i, model in enumerate(available_models, 1):
-            print(f"{i}. {model['shortcut']} ({model['format']}, {model.get('quantization', 'N/A')})")
-            print(f"   📂 {model['local_path']}")
-        print()
-    else:
-        print("⚠️  无可用模型")
-        print()
+        
+        available_models = []
+        missing_models = []
+        
+        for model in models:
+            if Path(model['local_path']).exists():
+                available_models.append(model)
+            else:
+                missing_models.append(model)
+        
+        if available_models:
+            print(f"✅ 可用: {len(available_models)} 个")
+            for i, model in enumerate(available_models, 1):
+                print(f"  {i}. {model['shortcut']} ({model['format']}, {model.get('quantization', 'N/A')})")
+                print(f"     📂 {model['local_path']}")
+            print()
+        
+        if missing_models:
+            print(f"⚠️  缺失: {len(missing_models)} 个")
+            for i, model in enumerate(missing_models, 1):
+                print(f"  {i}. {model['shortcut']} ({model['format']}, {model.get('quantization', 'N/A')})")
+                print(f"     ❌ {model['local_path']}")
+                print(f"     提示: 文件不存在，需要重新下载")
+            print()
     
-    # 警告缺失模型
-    if missing_models:
-        print(f"⚠️  缺失模型: {len(missing_models)} 个")
+    # ========== 嵌入模型 ==========
+    if embedding_models:
+        print("🔤 嵌入模型")
         print("-" * 80)
-        for i, model in enumerate(missing_models, 1):
-            print(f"{i}. {model['shortcut']} ({model['format']}, {model.get('quantization', 'N/A')})")
-            print(f"   ❌ {model['local_path']}")
-            print(f"   提示: 文件不存在，需要重新下载")
-        print()
+        
+        available_embeddings = []
+        missing_embeddings = []
+        
+        for model in embedding_models:
+            if Path(model['local_path']).exists():
+                available_embeddings.append(model)
+            else:
+                missing_embeddings.append(model)
+        
+        if available_embeddings:
+            print(f"✅ 可用: {len(available_embeddings)} 个")
+            for i, model in enumerate(available_embeddings, 1):
+                print(f"  {i}. {model['model_id']} (dim={model['embedding_dim']})")
+                print(f"     📂 {model['local_path']}")
+            print()
+        
+        if missing_embeddings:
+            print(f"⚠️  缺失: {len(missing_embeddings)} 个")
+            for i, model in enumerate(missing_embeddings, 1):
+                print(f"  {i}. {model['model_id']} (dim={model['embedding_dim']})")
+                print(f"     ❌ {model['local_path']}")
+                print(f"     提示: 文件不存在，需要重新下载")
+            print()
     
-    # 总结
+    # ========== 总结 ==========
     print("=" * 80)
-    print(f"总计: {len(models)} 个注册模型")
-    print(f"可用: {len(available_models)} 个 | 缺失: {len(missing_models)} 个")
+    total_llm = len(models)
+    available_llm = sum(1 for m in models if Path(m['local_path']).exists())
+    total_emb = len(embedding_models)
+    available_emb = sum(1 for m in embedding_models if Path(m['local_path']).exists())
+    
+    print(f"总计: {total_llm} 个LLM模型, {total_emb} 个嵌入模型")
+    print(f"可用: {available_llm} 个LLM, {available_emb} 个嵌入 | 缺失: {total_llm - available_llm + total_emb - available_emb} 个")
 
 
 def verify_models():

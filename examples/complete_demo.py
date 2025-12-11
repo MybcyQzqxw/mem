@@ -56,6 +56,73 @@ def check_model_in_registry(shortcut, format_type, quantization):
         return None
 
 
+def check_embedding_in_registry(model_id, embedding_dim):
+    """检查嵌入模型注册表，返回本地路径（如果存在）"""
+    registry_file = Path(__file__).parent.parent / 'model_registry.json'
+    
+    if not registry_file.exists():
+        return None
+    
+    try:
+        with open(registry_file, 'r', encoding='utf-8') as f:
+            registry = json.load(f)
+        
+        for model in registry.get('embedding_models', []):
+            if (model['model_id'] == model_id and 
+                model['embedding_dim'] == embedding_dim):
+                # 找到匹配的配置，检查文件是否存在
+                local_path = model['local_path']
+                if Path(local_path).exists():
+                    return local_path
+                else:
+                    return None
+        return None
+    except Exception as e:
+        print(f"   ⚠️  读取嵌入模型注册表失败: {e}")
+        return None
+
+
+def add_embedding_to_registry(model_id, embedding_dim, local_path):
+    """将嵌入模型添加到注册表"""
+    registry_file = Path(__file__).parent.parent / 'model_registry.json'
+    
+    # 读取现有注册表
+    if registry_file.exists():
+        try:
+            with open(registry_file, 'r', encoding='utf-8') as f:
+                registry = json.load(f)
+        except:
+            registry = {"_description": "本地模型注册表", "models": [], "embedding_models": []}
+    else:
+        registry = {"_description": "本地模型注册表", "models": [], "embedding_models": []}
+    
+    # 确保有embedding_models字段
+    if 'embedding_models' not in registry:
+        registry['embedding_models'] = []
+    
+    # 检查是否已存在
+    for model in registry['embedding_models']:
+        if (model['model_id'] == model_id and 
+            model['embedding_dim'] == embedding_dim):
+            # 更新现有记录
+            model['local_path'] = local_path
+            break
+    else:
+        # 添加新记录
+        registry['embedding_models'].append({
+            "model_id": model_id,
+            "embedding_dim": embedding_dim,
+            "local_path": local_path
+        })
+    
+    # 保存注册表
+    try:
+        with open(registry_file, 'w', encoding='utf-8') as f:
+            json.dump(registry, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"   ⚠️  保存嵌入模型注册表失败: {e}")
+
+
 def add_model_to_registry(shortcut, format_type, quantization, local_path, model_id):
     """将模型添加到注册表"""
     registry_file = Path(__file__).parent.parent / 'model_registry.json'
@@ -122,13 +189,30 @@ def download_models():
     print("\n1️⃣ 嵌入模型...")
     print(f"   模型: {embedding_model}")
     
-    sys.path.insert(0, str(Path(__file__).parent.parent / 'utils'))
-    from model_manager.downloader import download_embedding_model
+    # 先检查嵌入模型注册表
+    embedding_dim_val = int(os.getenv('EMBEDDING_DIM', '512'))
+    print(f"   🔍 检查嵌入模型注册表...")
+    embedding_path = check_embedding_in_registry(embedding_model, embedding_dim_val)
     
-    try:
-        download_embedding_model(model_id=embedding_model)
-    except Exception as e:
-        print(f"   ⚠️  嵌入模型预下载失败（首次使用时会自动下载）: {e}")
+    if embedding_path:
+        print(f"   ✅ 在注册表中找到嵌入模型")
+        print(f"   📂 位置: {embedding_path}")
+        print(f"   ⏭️  跳过下载")
+    else:
+        print(f"   ℹ️  注册表中无此配置，需要下载")
+        sys.path.insert(0, str(Path(__file__).parent.parent / 'utils'))
+        from model_manager.downloader import download_embedding_model
+        
+        try:
+            downloaded_path = download_embedding_model(model_id=embedding_model)
+            print(f"   ✅ 嵌入模型就绪")
+            print(f"   📂 位置: {downloaded_path}")
+            
+            # 添加到注册表
+            print(f"   💾 更新嵌入模型注册表...")
+            add_embedding_to_registry(embedding_model, embedding_dim_val, downloaded_path)
+        except Exception as e:
+            print(f"   ⚠️  嵌入模型预下载失败（首次使用时会自动下载）: {e}")
     
     # 2. 检查LLM模型
     print("\n2️⃣ LLM模型...")

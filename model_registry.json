@@ -15,5 +15,12 @@
       "local_path": "models/gguf/mistral-7b-instruct-v0.2.Q2_K.gguf",
       "model_id": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF"
     }
+  ],
+  "embedding_models": [
+    {
+      "model_id": "BAAI/bge-small-zh-v1.5",
+      "embedding_dim": 512,
+      "local_path": "models/embeddings/models--BAAI--bge-small-zh-v1.5"
+    }
   ]
 }
