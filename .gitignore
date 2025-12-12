@@ -92,3 +92,7 @@ temp/
 # Models
 /models/
 /embedding_models/
+
+# Model registry files
+/model_downloaded.json
+/model_registry.json
