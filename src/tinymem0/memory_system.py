@@ -34,7 +34,8 @@ class MemorySystem:
         use_local_llm: Optional[bool] = None,
         local_model_path: Optional[str] = None,
         local_embedding_model: Optional[str] = None,
-        embedding_dim: Optional[int] = None
+        embedding_dim: Optional[int] = None,
+        memory_search_limit: int = 5
     ):
         """
         初始化记忆系统
@@ -51,6 +52,7 @@ class MemorySystem:
             local_model_path: 本地LLM路径
             local_embedding_model: 本地嵌入模型
             embedding_dim: 嵌入向量维度
+            memory_search_limit: 写入记忆时搜索相关记忆的数量限制
         """
         self.collection_name = collection_name
         self.qdrant_path = qdrant_path or "./qdrant_data"
@@ -62,6 +64,7 @@ class MemorySystem:
         self.local_model_path = local_model_path or ""
         self.local_embedding_model = local_embedding_model or "BAAI/bge-small-zh-v1.5"
         self.embedding_dim = embedding_dim or (512 if self.use_local_llm else 1536)
+        self.memory_search_limit = memory_search_limit
         # 日志模式: 优先参数，其次环境变量，默认 plain
         self.log_mode = (log_mode or os.getenv("MEM_LOG_MODE") or "plain").lower()
         if self.log_mode not in {"plain", "json"}:
@@ -414,7 +417,7 @@ class MemorySystem:
                 filters["user_id"] = user_id
             if agent_id:
                 filters["agent_id"] = agent_id
-            existing_memories = self.search_memories(query=new_fact, filters=filters, limit=5)
+            existing_memories = self.search_memories(query=new_fact, filters=filters, limit=self.memory_search_limit)
             for mem in existing_memories:
                 # 以 id 作为唯一键，避免重复加入
                 retrieved_old_memory_map[mem["id"]] = {"id": mem["id"], "text": mem["text"]}
