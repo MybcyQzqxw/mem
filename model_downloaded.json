@@ -14,6 +14,13 @@
       "quantization": "Q2_K",
       "local_path": "models/gguf/mistral-7b-instruct-v0.2.Q2_K.gguf",
       "model_id": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF"
+    },
+    {
+      "shortcut": "mistral-7b",
+      "format": "gguf",
+      "quantization": "Q8_0",
+      "local_path": "models/gguf/mistral-7b-instruct-v0.2.Q8_0.gguf",
+      "model_id": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF"
     }
   ],
   "embedding_models": [
